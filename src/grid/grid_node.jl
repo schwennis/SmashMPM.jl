@@ -1,6 +1,7 @@
 struct GridNode{T}
     m::T                    # Mass
-    v::SVector{3, T}        # Velocity
+    c::T                    # Soundspeed
+    v::SVector{3, T}        # Velocity  
 end
 
 

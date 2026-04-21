@@ -7,6 +7,4 @@ abstract type AbstractParticles end
 
 abstract type AbstractBoundaryCondition end
 
-abstract type AbstractSolver end
-
 abstract type AbstractExternalForce end

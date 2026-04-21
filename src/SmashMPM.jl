@@ -6,7 +6,8 @@ using StaticArrays
 using LinearAlgebra
 
 using KernelAbstractions
-using adapt
+using Adapt
+using Atomix
 
 include("core/abstract_types.jl")
 include("core/model.jl")
