@@ -1,15 +1,17 @@
 mutable struct Model{
     T, 
-    MGT<:AbstractVector{<:MaterialGroup}, 
-    GT<:AbstractGrid, MT<:AbstractMaterial,
+    MGT<:Tuple{<:AbstractMaterialGroup}, 
+    GT<:AbstractGrid,
     BC<:AbstractBoundaryCondition, 
-    EF<:AbstractExternalForce
+    EF<:AbstractExternalForce,
+    SF<:AbstractShapeFunction
 }
 
     material_groups::MGT
     grid::GT
     boundary_condition::BC
     external_force::EF
+    shapefunction::SF
 
     t::T
     t_max::T

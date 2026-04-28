@@ -1,4 +1,4 @@
-struct SoAMaterialGroup{MaterialType<:AbstractMaterial, SA<:StructArray}<:AbstractParticles
+struct SoAMaterialGroup{MaterialType<:AbstractMaterial, SA<:StructArray}<:AbstractMaterialGroup
     points::SA              # StructArray{Particle{T,MaterialCache}}
     points_buffer::SA       # Buffer for fast swapping of points (StructArray{Particle{T,MaterialCache}})
     material::MaterialType

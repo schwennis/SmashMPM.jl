@@ -4,7 +4,7 @@ struct DenseGrid{T, S <: AbstractArray}<:AbstractGrid
 
     padding::Int    # Padding width
 
-    origin::SVector{3, T}           # Space Coordinates of the grid origin (1,1,1)
+    origin::SVector{3, T}           # Space Coordinates of the grid origin (1,1,1) + padding
     inv_dx::T                       # Inverse of grid spacing dx
 end
 
@@ -25,9 +25,22 @@ function DenseGrid(dx::T, N::SVector{3, Int}, origin::SVector{3, T}, padding::In
 end
 
 
-function max_v_c(grid::DenseGrid{T, S}) where {T, S}
+function max_wavespeed(grid::DenseGrid{T, S}) where {T, S}
     res = mapreduce(max, grid.state_old) do node
-        sqrt(sum(node.v.^2)) + node.c
+        node.wave_speed
     end
     return res
+end
+
+
+
+function grid_reset!(grid::DenseGrid{T, S}) where {T, S}
+    grid.state_old, grid.state_new = grid.state_new, grid.state_old
+
+    # reset grid_new for the next iteration
+    fill!(grid.state_new.m, zero(T))
+    fill!(grid.state_new.wave_speed, zero(T))
+    fill!(grid.state_new.p.x, zero(T))
+    fill!(grid.state_new.p.y, zero(T))
+    fill!(grid.state_new.p.z, zero(T))
 end
