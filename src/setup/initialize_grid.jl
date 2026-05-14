@@ -43,7 +43,7 @@ function median_nn_spacing(positions::AbstractVector{SVector{3,<:Number}})
 end
 
 
-function initial_p2g_kernel!(grid_state, positions, velocities, masses, origin, inv_dx, padding, spline)
+@kernel function initial_p2g_kernel!(grid_state, positions, velocities, masses, origin, inv_dx, padding, spline)
     p_idx = @index(Global, 1)
     if p_idx > length(positions)
         error("Particle index out of bounds in initial_p2g_kernel!")
