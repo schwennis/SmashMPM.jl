@@ -1,6 +1,6 @@
 struct SoAMaterialGroup{MaterialType<:AbstractMaterial, SA<:StructArray}<:AbstractMaterialGroup
-    points::SA              # StructArray{Particle{T,MaterialCache}}
-    points_buffer::SA       # Buffer for fast swapping of points (StructArray{Particle{T,MaterialCache}})
+    particles::SA              # StructArray{Particle{T,MaterialCache}}
+    particles_buffer::SA       # Buffer for fast swapping of points (StructArray{Particle{T,MaterialCache}})
     material::MaterialType
 end
 
@@ -11,7 +11,11 @@ function SoAMaterialGroup(particle_vector::AbstractVector{Particle{T, MatCacheTy
             undef, Tuple(length(particle_vector));
             unwrap = t -> t <: SVector
         )
-        fill!(cpu_SoA, zero(Particle{T, MatCacheType}))
+
+        for i in eachindex(particle_vector)
+            cpu_SoA[i] = particle_vector[i]
+        end
+
         return StructArrays.replace_storage(AT, cpu_SoA)
     end
 

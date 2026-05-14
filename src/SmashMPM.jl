@@ -9,6 +9,8 @@ using KernelAbstractions
 using Adapt
 using Atomix: @atomic
 
+using NearestNeighbors
+
 
 # -------------------------------- Core Folder ------------------------------- #
 include("core/abstract_types.jl")
@@ -61,5 +63,7 @@ include("solver/courant_timestep.jl")
 export courant_timestep
 include("solver/g2p2g_kernel.jl")
 export g2p2g_kernel
+include("solver/step.jl")
+export step!
 
 end

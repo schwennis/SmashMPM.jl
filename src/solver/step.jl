@@ -1,7 +1,7 @@
 function step!(model::Model, cfl_factor::T=0.4) where {T}
     grid = model.grid
 
-    reset_grid!(grid)
+    grid_reset!(grid)
 
     dt = courant_timestep(model, cfl_factor)
 
@@ -11,5 +11,5 @@ function step!(model::Model, cfl_factor::T=0.4) where {T}
 
     apply_external_forces!(grid, model.external_force, dt)
 
-    apply_boundary_conditions!(grid, model.boundary_condition)
+    apply_boundary_condition!(grid, model.boundary_condition)
 end
