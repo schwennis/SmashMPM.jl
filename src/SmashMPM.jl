@@ -58,6 +58,14 @@ export NoBoundaryCondition
 include("boundary_conditions/no_slip.jl")
 export NoSlipBoundary
 
+
+# -------------------------- External Forces Folder -------------------------- #
+include("external_forces/const_gravity.jl")
+export ConstantGravity
+include("external_forces/self_gravity_FFT.jl")
+export SelfGravityFFT
+
+
 # ------------------------------- Solver Folder ------------------------------ #
 include("solver/courant_timestep.jl")
 export courant_timestep
