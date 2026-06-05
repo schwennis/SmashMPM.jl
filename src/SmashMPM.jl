@@ -59,13 +59,6 @@ include("boundary_conditions/no_slip.jl")
 export NoSlipBoundary
 
 
-# -------------------------- External Forces Folder -------------------------- #
-include("external_forces/const_gravity.jl")
-export ConstantGravity
-include("external_forces/self_gravity_FFT.jl")
-export SelfGravityFFT
-
-
 # ------------------------------- Solver Folder ------------------------------ #
 include("solver/courant_timestep.jl")
 export courant_timestep
@@ -73,5 +66,10 @@ include("solver/g2p2g_kernel.jl")
 export g2p2g_kernel
 include("solver/step.jl")
 export step!
+
+
+# ------------------------------- Setup Folder ------------------------------ #
+include("setup/autogrid.jl")
+export autogrid_parameters!
 
 end

@@ -8,7 +8,7 @@ function apply_boundary_condition!(grid::DenseGrid{T, S}, bc::NoSlipBoundary{T})
     # Apply no-slip condition by setting velocity to zero at masked nodes
     for i in eachindex(state.p)
         if bc.mask[i]
-            state.p[i] .= 0.0
+            state.p[i] .= zero(T)
         end
     end
 end

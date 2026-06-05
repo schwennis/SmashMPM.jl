@@ -23,7 +23,7 @@ function add_material_group!(model::Model, positions, masses, volumes, material)
         particle_vector[i] = Particle(positions[i], masses[i], volumes[i], MaterialCache(material))
     end
     material_group = SoAMaterialGroup(particle_vector, material)
-    model.material_groups = model.material_groups + (material_group,)
+    model.material_groups = (model.material_groups..., material_group)
 end
 
 

@@ -5,7 +5,7 @@ struct NeoHookean{T}<:AbstractMaterial
     c::T
 end
 
-function NeoHookean(;E, ν, ρ, λ, μ)
+function NeoHookean(;E=nothing, ν=nothing, ρ=nothing, λ=nothing, μ=nothing)
     if isnothing(ρ)
         error("Density ρ must be provided")
     end
@@ -16,6 +16,7 @@ function NeoHookean(;E, ν, ρ, λ, μ)
     elseif λ === nothing || μ === nothing
         error("Either (E and ν) or (λ and μ) must be provided")
     end
+    c = sqrt((λ + 2 * μ) / ρ)
 
     return NeoHookean{typeof(λ)}(μ, λ, ρ, c)
 end
