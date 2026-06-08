@@ -14,8 +14,7 @@ using NearestNeighbors
 
 # -------------------------------- Core Folder ------------------------------- #
 include("core/abstract_types.jl")
-export NoMaterialCache, NoBoundaryCondition
-export ForwardEuler, LeapFrog
+export NoMaterialCache, NoBoundaryCondition, NoExternalForce
 include("core/model.jl")
 export Model
 
@@ -36,7 +35,7 @@ export DenseGrid
 
 # --------------------------- Shape Function Folder -------------------------- #
 include("shapefunctions/quadratic_spline.jl")
-export shapefunction
+export shapefunction, QuadraticSpline
 include("shapefunctions/shapefunction_utils.jl")
 
 
@@ -50,6 +49,7 @@ include("external_forces/const_gravity.jl")
 export ConstantGravity
 include("external_forces/self_gravity_FFT.jl")
 export SelfGravityFFT
+include("external_forces/no_external_force.jl")
 
 
 # ------------------------ Boundary Conditions Folder ------------------------ #
@@ -71,5 +71,10 @@ export step!
 # ------------------------------- Setup Folder ------------------------------ #
 include("setup/autogrid.jl")
 export autogrid_parameters!
+include("setup/initialize_grid.jl")
+export initial_p2g!
+include("setup/initialize_particles.jl")
+export add_material_group!
+
 
 end

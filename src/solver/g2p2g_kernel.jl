@@ -3,7 +3,7 @@
     p_idx = @index(Global)
 
     if p_idx > length(particles)
-        error("Particle index out of bounds in g2p2g_kernel!")
+        error("Particle index $p_idx out of bounds for particles of length $(length(particles))")
     end
 
     mp = particles[p_idx]
@@ -15,7 +15,9 @@
     v_p = zero(SVector{3, T})
     B_p = zero(SMatrix{3, 3, T, 9})
 
-    grid_pos = get_grid_position(mp.pos, inv_dx, origin, padding)
+    grid_pos = get_grid_position(particles.pos[p_idx], inv_dx, origin, padding)
+
+    @assert all(isfinite.(grid_pos)) "Non-finite grid position computed for particle $p_idx: $grid_pos,\ninterpolated from particle position $(particles.pos[p_idx])"
 
     base_node = get_support_base(spline, grid_pos)
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
@@ -26,7 +28,7 @@
         j = base_node[2] + dj
         k = base_node[3] + dk
         
-        if !checkbounds(grid_old, i, j, k) || grid_old.m[i, j, k] <= eps(T)
+        if !checkbounds(Bool, grid_old.m, i, j, k) || grid_old.m[i, j, k] <= eps(T)
             continue
         end
 
@@ -47,20 +49,21 @@
     # =========================================================
     # Particle Update Phase
     # =========================================================
-    mp.pos = mp.pos + v_p * dt
-    mp.F = (I + C_p * dt) * mp.F
-    J_p = det(mp.F)
+    particles.pos[p_idx] = particles.pos[p_idx] + v_p * dt
+    @assert all(isfinite.(particles.pos[p_idx])) "Particle $p_idx at "
+    particles.F[p_idx] = (I + C_p * dt) * particles.F[p_idx]
+    J_p = det(particles.F[p_idx])
 
-    σ_p, mp.mat_cache = material_model(material, mp.mat_cache, mp.F, C_p, mp.V0, mp.m, dt)
+    σ_p, particles.mat_cache[p_idx] = material_model(material, particles.mat_cache[p_idx], particles.F[p_idx], C_p, mp.V0, mp.m, dt)
 
 
-    soundspeed_p = get_soundspeed(material, mp.mat_cache)
+    soundspeed_p = get_soundspeed(material, particles.mat_cache[p_idx])
     
     # =========================================================
     # P2G Phase
     # =========================================================
 
-    grid_pos = get_grid_position(mp.pos, inv_dx, origin, padding)
+    grid_pos = get_grid_position(particles.pos[p_idx], inv_dx, origin, padding)
 
     base_node = get_support_base(spline, grid_pos)
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
@@ -70,7 +73,7 @@
         j = base_node[2] + dj
         k = base_node[3] + dk
         
-        if !checkbounds(grid_new, i, j, k)
+        if !checkbounds(Bool, grid_new.m, i, j, k)
             continue
         end
 
@@ -82,11 +85,11 @@
         p_update = N * Q * r_rel
 
         @atomic :monotonic grid_new.m[i, j, k] += N * mp.m
-        @atomic grid_new.wave_speed[i, j, k] = max(grid_new.wave_speed[i, j, k], soundspeed_p + sqrt(sum(v_p.^2)))
+        @atomic grid_new.wave_speed[i, j, k] = max(grid_new.wave_speed[i, j, k], soundspeed_p + norm(v_p))
 
-        @atomic :monotonic grid_new.p[i, j, k].x += p_update[1]
-        @atomic :monotonic grid_new.p[i, j, k].y += p_update[2]
-        @atomic :monotonic grid_new.p[i, j, k].z += p_update[3]
+        @atomic :monotonic grid_new.p.x[i, j, k] += p_update[1]
+        @atomic :monotonic grid_new.p.y[i, j, k] += p_update[2]
+        @atomic :monotonic grid_new.p.z[i, j, k] += p_update[3]
     end
 
 end

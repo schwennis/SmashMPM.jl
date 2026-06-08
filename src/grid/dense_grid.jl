@@ -1,4 +1,4 @@
-struct DenseGrid{T, S <: AbstractArray}<:AbstractGrid
+mutable struct DenseGrid{T, S <: AbstractArray}<:AbstractGrid
     state_old::S            # StructArray of GridNodes (from previous time step)
     state_new::S            # StructArray of GridNodes (for current time step)
 

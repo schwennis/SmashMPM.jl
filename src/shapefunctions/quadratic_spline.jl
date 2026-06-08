@@ -1,16 +1,32 @@
 struct QuadraticSpline <: AbstractShapeFunction end
 
 @fastmath @inline function shapefunction(::QuadraticSpline, natural_coords::SVector{3, T}) where {T}
-    Nx = max(one(T) - abs(natural_coords[1]), zero(T))
-    Ny = max(one(T) - abs(natural_coords[2]), zero(T))
-    Nz = max(one(T) - abs(natural_coords[3]), zero(T))
-
-    N = Nx * Ny * Nz
+    N = quadspline_1d(natural_coords[1]) * quadspline_1d(natural_coords[2]) * quadspline_1d(natural_coords[3])
     
     return N
 end
 
+@inline function quadspline_1d(dist_1d::T) where {T}
+    abs_d = abs(dist_1d )
+    
+    w = zero(T)
 
+    if abs_d < 0.5
+        # Fall 1: |x| < 0.5
+        # N(x) = 0.75 - x^2
+        w = T(0.75) - abs_d^2
+    elseif abs_d < 1.5
+        # 0.5 <= |x| < 1.5
+        # N(x) = 0.5 * (1.5 - |x|)^2
+        val = T(1.5) - abs_d
+        w = T(0.5) * val^2
+    else
+        # outside of support
+        w = zero(T)
+    end
+
+    return w
+end
 
 
 @inline function get_support_base(::QuadraticSpline, grid_coords::SVector{3, T}) where {T}

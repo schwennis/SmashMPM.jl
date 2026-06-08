@@ -1,6 +1,6 @@
 
 @kernel function initial_p2g_kernel!(grid_state, positions, velocities, masses, origin, inv_dx, padding, spline)
-    p_idx = @index(Global, 1)
+    p_idx = @index(Global, Linear)
     if p_idx > length(positions)
         error("Particle index out of bounds in initial_p2g_kernel!")
     end
@@ -18,17 +18,17 @@
         j = base_node[2] + dj
         k = base_node[3] + dk
         
-        if !checkbounds(grid_state, i, j, k)
+        if !checkbounds(Bool, grid_state, i, j, k)
             continue
         end
 
         natural_coords = grid_pos - SVector(i, j, k)
         N = shapefunction(spline, natural_coords)
-
+        
         @atomic :monotonic grid_state.m[i, j, k] += N * mass
-        @atomic :monotonic grid_state.p[i, j, k].x += N * vel[1]
-        @atomic :monotonic grid_state.p[i, j, k].y += N * vel[2]
-        @atomic :monotonic grid_state.p[i, j, k].z += N * vel[3]
+        @atomic :monotonic grid_state.p.x[i, j, k] += N * vel[1]
+        @atomic :monotonic grid_state.p.y[i, j, k] += N * vel[2]
+        @atomic :monotonic grid_state.p.z[i, j, k] += N * vel[3]
     end
 end
 
