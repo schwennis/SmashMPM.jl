@@ -75,6 +75,7 @@ include("setup/initialize_grid.jl")
 export initial_p2g!
 include("setup/initialize_particles.jl")
 export add_material_group!
-
+include("setup/geometry.jl")
+export generate_particles, Sphere, Cylinder, RectangularPrism
 
 end

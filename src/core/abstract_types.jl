@@ -13,3 +13,8 @@ abstract type AbstractExternalForce end
 struct NoExternalForce <: AbstractExternalForce end
 
 abstract type AbstractShapeFunction end
+
+
+abstract type AbstractShape end
+
+abstract type AbstractBody end
