@@ -1,8 +1,6 @@
 # Helper for converting between euler angles and rotation matrices
 # Used to orient cylinders and rectangular prisms
-function generate_rotation_matrix(euler_angles::SVector{3, T}) where T
-    roll, pitch, yaw = euler_angles
-
+function generate_rotation_matrix(roll::T, pitch::T, yaw::T) where T
     R_x = @SMatrix [
         1      0           0      ;
         0  cos(roll)  -sin(roll)  ;
@@ -23,6 +21,12 @@ function generate_rotation_matrix(euler_angles::SVector{3, T}) where T
 
     return R_z * R_y * R_x
 end
+
+
+# ---------------------------------------------------------------------------- #
+#                              Abstract Shape Type                             #
+# ---------------------------------------------------------------------------- #
+abstract type AbstractShape end
 
 
 # ---------------------------------------------------------------------------- #
@@ -149,7 +153,7 @@ function generate_particles(
     euler_angles = shape.euler_angles
 
     # Create Rotation Matrix
-    rot_matrix = generate_rotation_matrix(euler_angles)
+    rot_matrix = generate_rotation_matrix(euler_angles[1], euler_angles[2], euler_angles[3])
 
     # Number of particles per axis
     num_particles_radial = ceil(Int, 2R / spacing)
@@ -199,7 +203,14 @@ function generate_particles(
 end
 
 
+# ---------------------------------------------------------------------------- #
+#                              Abstract Body Type                              #
+# ---------------------------------------------------------------------------- #
+abstract type AbstractBody end
 
-# ---------------------------------------------------------------------------- #
-#                               Rectangular prism                              #
-# ---------------------------------------------------------------------------- #
+struct Body{S,M,T} <: AbstractBody
+    shape::S
+    velocity::SVector{3, T}
+    rot_vector::SVector{3, T}
+    material::M
+end
