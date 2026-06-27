@@ -19,6 +19,9 @@ bodies = (body,)
 
 Setup = SimulationSetup(dx=0.1, t_end=1.0)
 
-Model = build_mpm_model(bodies, Setup)
+model = build_mpm_model(bodies, Setup)
 
-println("Model built successfully with $(length(Model.particle_sets[1].particles.pos)) particles and a grid of size $(size(Model.grid.state_old.mass)).")
+N_particles = length(model.particle_sets[1].particles.pos)
+dims = size(model.grid.state_old.mass)
+
+println("Model built successfully with $N_particles particles and a grid of size $dims.")

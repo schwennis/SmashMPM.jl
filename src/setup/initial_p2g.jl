@@ -1,4 +1,4 @@
-@kernel function initial_p2g_kernel!(grid_state, positions, velocities, masses, origin, inv_dx, padding, spline)
+@kernel function initial_p2g_kernel!(grid_state, positions, velocities, masses, soundspeeds, origin, inv_dx, padding, spline)
     p_idx = @index(Global, Linear)
     if p_idx > length(positions)
         error("Particle index out of bounds in initial_p2g_kernel!")
@@ -28,10 +28,11 @@
         @atomic :monotonic grid_state.momentum.x[i, j, k] += N * vel[1]
         @atomic :monotonic grid_state.momentum.y[i, j, k] += N * vel[2]
         @atomic :monotonic grid_state.momentum.z[i, j, k] += N * vel[3]
+        @atomic grid_state.wave_speed[i, j, k] = max(grid_state.wave_speed[i, j, k], soundspeeds[p_idx] + norm(vel))
     end
 end
 
-function initial_p2g!(grid, positions, velocities, masses, spline)
+function initial_p2g!(grid, positions, velocities, masses, soundspeeds, spline)
     grid_old = grid.state_old
     origin = grid.origin
     inv_dx = grid.inv_dx
@@ -41,7 +42,7 @@ function initial_p2g!(grid, positions, velocities, masses, spline)
 
     kernel = initial_p2g_kernel!(backend)
 
-    kernel(grid_old, positions, velocities, masses, origin, inv_dx, padding, spline;
+    kernel(grid_old, positions, velocities, masses, soundspeeds, origin, inv_dx, padding, spline;
             ndrange=length(positions))
 
     KernelAbstractions.synchronize(backend)

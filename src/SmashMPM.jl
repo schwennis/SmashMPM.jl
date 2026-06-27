@@ -8,9 +8,13 @@ using KernelAbstractions
 using Adapt
 using Atomix: @atomic
 
+using JLD2
+using Printf
+using WriteVTK
+
 include("helpers.jl")
 
-include("materials.jl")
+include("materials/materials.jl")
 export AbstractMaterial, AbstractMaterialState, NoMaterialState
 export material_model, get_soundspeed, get_initial_material_state
 export NeoHookean, LinearElastic
@@ -20,10 +24,10 @@ export QuadraticSpline
 export shapefunction
 
 
-include("particles.jl")
+include("particles/particles.jl")
 export AbstractParticleSet, Particle, SoAParticleSet
 
-include("grid.jl")
+include("grids/grid.jl")
 export AbstractGrid, DenseGrid, GridNode
 
 include("boundary_conditions.jl")

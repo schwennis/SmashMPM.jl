@@ -55,13 +55,9 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
 
     grid = DenseGrid(setup.dx, N, origin, setup.padding, setup.backend)
     
-    # Initialize velocities of grid
-    for data in bodies_data
-        initial_p2g!(grid, data.pos, data.vel, data.mass, setup.shapefunction)
-    end
-
-
     # Create Particle Sets
+    particle_counter = 1
+    soundspeeds = Vector{T}()
     particle_sets = map(bodies_data) do data
         mat_cache_type = typeof(get_initial_material_state(data.material))
         
@@ -70,11 +66,18 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
         @inbounds for i in eachindex(data.pos)
             # Wichtig: initial_material_state frisch generieren (oder deepcopy), 
             # damit nicht alle Partikel denselben Referenz-Speicher teilen!
-            particle_vector[i] = Particle(data.pos[i], data.mass[i], data.vol[i], deepcopy(get_initial_material_state(data.material)))
+            particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], deepcopy(get_initial_material_state(data.material)))
+            particle_counter += 1
+            push!(soundspeeds, get_soundspeed(data.material, particle_vector[i].mat_state))
         end
         
         # Transfer aufs Backend und Rückgabe als SoA
         return setup.particle_set_type(particle_vector, data.material, setup.backend)
+    end
+
+    # Initialize velocities of grid
+    for data in bodies_data
+        initial_p2g!(grid, data.pos, data.vel, data.mass, soundspeeds, setup.shapefunction)
     end
 
 
