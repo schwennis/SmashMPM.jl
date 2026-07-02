@@ -54,7 +54,7 @@ end
 
 # APIC Logic
 @inline function B_update(::QuadraticSpline, N, r_rel, v_I)
-    return N * r_rel' * v_I
+    return N * (v_I * r_rel')
 end
 
 @inline function M_inv(::QuadraticSpline, inv_dx)

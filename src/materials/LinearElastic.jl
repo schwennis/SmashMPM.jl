@@ -29,7 +29,7 @@ function get_initial_material_state(::LinearElastic)
 end
 
 
-@inline function material_model(material::LinearElastic{T}, mat_state::NoMaterialState, F, C, V0, m, dt) where {T}
+@inline function material_model(material::LinearElastic{T}, mat_cache::NoMaterialState, F, C, V0, m, dt) where {T}
     μ = material.μ
     λ = material.λ
 
@@ -39,7 +39,7 @@ end
     
     σ = 2 * μ * ε + λ * tr(ε) * I
 
-    return σ, mat_state
+    return σ, mat_cache
 end
 
 function get_soundspeed(material::LinearElastic{T}, material_cache::NoMaterialState) where {T}

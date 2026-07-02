@@ -33,7 +33,7 @@ abstract type AbstractShape end
 #                                    Sphere                                    #
 # ---------------------------------------------------------------------------- #
 
-struct Sphere{T} <: AbstractShape
+@kwdef struct Sphere{T} <: AbstractShape
     center::SVector{3, T}
     radius::T
 end
@@ -113,7 +113,7 @@ end
 #                                   Cylinder                                   #
 # ---------------------------------------------------------------------------- #
 
-struct Cylinder{T} <: AbstractShape
+@kwdef struct Cylinder{T} <: AbstractShape
     center::SVector{3, T}
     radius::T
     height::T

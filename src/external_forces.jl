@@ -46,3 +46,23 @@ function apply_external_forces!(force::RadialInvSquareForceField{T}, grid::Dense
         state.momentum[i, j, k] = state.momentum[i, j, k] .+ state.mass[i, j, k] .* force_vec .* dt
     end
 end
+
+
+# ---------------------------------------------------------------------------- #
+#                              Vector Field Force                              #
+# ---------------------------------------------------------------------------- #
+struct VectorFieldForce{A} <: AbstractExternalForce
+    force_field::A  # Array{SVector}
+end
+
+function apply_external_forces!(force::VectorFieldForce{A}, grid::DenseGrid{T, S}, dt::T) where {A, T, S}
+    state = grid.state_old
+    force_field = force.force_field
+
+    @assert size(force_field) == size(state.mass) "Force field dimensions must match grid dimensions."
+
+    for i in 1:size(state.mass, 1), j in 1:size(state.mass, 2), k in 1:size(state.mass, 3)
+        force_vec = force.force_field[i, j, k]
+        state.momentum[i, j, k] = state.momentum[i, j, k] .+ state.mass[i, j, k] .* force_vec .* dt
+    end 
+end

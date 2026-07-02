@@ -1,13 +1,13 @@
 # ---------------------------------------------------------------------------- #
 #                               Courant Timestep                               #
 # ---------------------------------------------------------------------------- #
-function courant_timestep(model::Model, cfl_factor::T=0.5) where {T} 
+function courant_timestep(model::MPMModel, cfl_factor::T=0.5) where {T} 
     # Extract necessary information from the model
     grid = model.grid
    
     dt_courant = cfl_factor / (grid.inv_dx * max_wavespeed(grid))
     
-    return dt_courant
+    return min(dt_courant, model.dt_max)
 end
 
 
@@ -23,17 +23,13 @@ end
 ) where T
     p_idx = @index(Global, Linear)
 
-    if p_idx > length(particle_set.particles.pos)
-        return
-    end
-
     # Extract particle properties
     pos_old = particle_set.particles.pos[p_idx]
     mass = particle_set.particles.mass[p_idx]
     V0 = particle_set.particles.initial_volume[p_idx]
 
     vel = zero(SVector{3, T})
-    C = zero(SMatrix{3, 3, T, 9})
+    B = zero(SMatrix{3, 3, T, 9})
 
     grid_pos_old = get_grid_position(pos_old, inv_dx, origin, padding)
     base_node_old = get_support_base(spline, grid_pos_old)
@@ -56,7 +52,7 @@ end
         if state_old.mass[i, j, k] > 0
             v_grid = state_old.momentum[i, j, k] / state_old.mass[i, j, k]
             vel = vel + N * v_grid
-            C = C + B_update(spline, N, r_rel, v_grid)
+            B = B + B_update(spline, N, r_rel, v_grid)
         end
     end
 
@@ -64,10 +60,14 @@ end
     particle_set.particles.pos[p_idx] = pos_old + vel * dt
     
     # Finalize affine velocity update
-    C = C * M_inv(spline, inv_dx)
+    C = B * M_inv(spline, inv_dx)
 
     # Update particle state
-    σ, mat_state_new = update_material_state(particle_set.particles.mat_state[p_idx], C, dt, V0)
+    F_old = particle_set.particles.F[p_idx]
+    material = particle_set.material
+    mat_state = particle_set.particles.mat_state[p_idx]
+
+    σ, mat_state_new = material_model(material, mat_state, F_old, C, V0, mass, dt)
     particle_set.particles.mat_state[p_idx] = mat_state_new
     particle_set.particles.F[p_idx] = (I + C * dt) * particle_set.particles.F[p_idx]
     J = det(particle_set.particles.F[p_idx])
@@ -115,15 +115,14 @@ function g2p2g!(model::MPMModel, dt)
     inv_dx = grid.inv_dx
     padding = grid.padding
 
-    backend = KernelAbstractions.get_backend(grid.state_old.mass)
+    backend = model.backend
 
     kernel = g2p2g_kernel!(backend)
 
-    for particle_set in particle_sets
+    foreach(particle_sets) do particle_set
         kernel(grid.state_old, grid.state_new, particle_set, origin, inv_dx, padding, spline, dt;
-                ndrange=length(particle_set.particles.pos))
+               ndrange=length(particle_set.particles.pos))
     end
 
     KernelAbstractions.synchronize(backend)
-    
 end

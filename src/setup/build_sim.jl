@@ -6,7 +6,8 @@
 
     # Properties
     CFL_number::T = 0.4
-    t_end::T
+    t_max::T
+    dt_max::T = 0.01
     ppc_1d::Int = 2
     particle_set_type::Type{P} = SoAParticleSet
     boundary_condition::BC = NoBoundaryCondition()
@@ -49,9 +50,9 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     # Create Grid
     # Compute grid Size 
     min_corner, max_corner = bounding_box(all_positions)
-    grid_length = max_corner - min_corner
+    grid_length = max_corner - min_corner .+ particle_spacing
     N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * setup.padding
-    origin = min_corner .- setup.padding * setup.dx    
+    origin = min_corner .- (setup.padding) * setup.dx .- 0.5 * particle_spacing
 
     grid = DenseGrid(setup.dx, N, origin, setup.padding, setup.backend)
     
@@ -80,16 +81,17 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
         initial_p2g!(grid, data.pos, data.vel, data.mass, soundspeeds, setup.shapefunction)
     end
 
-
+    
     return MPMModel(
         particle_sets, 
         grid, 
         setup.boundary_condition, 
         setup.external_force, 
         setup.shapefunction, 
-        setup.backend, 
+        setup.backend,
         zero(T), 
-        setup.t_end, 
+        setup.t_max, 
+        setup.dt_max,
         setup.CFL_number
     )
 end

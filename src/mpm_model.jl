@@ -1,4 +1,4 @@
-mutable struct MPMModel{
+@kwdef mutable struct MPMModel{
     T, 
     MGT<:Tuple, 
     GT<:AbstractGrid,
@@ -10,15 +10,16 @@ mutable struct MPMModel{
 
     particle_sets::MGT
     grid::GT
-    boundary_condition::BC
-    external_force::EF
-    shapefunction::SF
+    boundary_condition::BC = NoBoundaryCondition()
+    external_force::EF = NoExternalForce()
+    shapefunction::SF = QuadraticSpline()
 
-    backend::B
+    backend::B = CPU()
 
-    t::T
+    t::T = 0.0
     t_max::T
-    CFL_number::T
+    dt_max::T = 0.01
+    CFL_number::T = 0.4
 end
 
 
