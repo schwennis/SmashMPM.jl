@@ -21,6 +21,8 @@ end
     origin, inv_dx::T, spline,
     dt::T
 ) where T
+    mass_cutoff = 1e-8
+
     p_idx = @index(Global, Linear)
 
     # Extract particle properties
@@ -49,7 +51,7 @@ end
         N = shapefunction(spline, natural_coords)
 
         # G2P: Interpolate grid velocity to particle
-        if state_old.mass[i, j, k] > 0
+        if state_old.mass[i, j, k] > mass_cutoff
             v_grid = state_old.momentum[i, j, k] / state_old.mass[i, j, k]
             vel = vel + N * v_grid
             B = B + B_update(spline, N, r_rel, v_grid)

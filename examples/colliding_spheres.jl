@@ -84,7 +84,7 @@ ylims!(ax, -1.0, 1.0)
 zlims!(ax, -1.0, 1.0)
 
 # Zeige das Fenster an
-display(fig)
+# display(fig)
 
 # --- Simulations-Schleife ---
 plot_interval = 0.02
@@ -92,28 +92,46 @@ last_plot_t = 0.0
 
 println("Starte Simulation und Video-Aufnahme...")
 
-# Das @record Makro speichert die Animation als "mp4" ab
-record(fig, "mpm_aufprall.mp4", frame_iterator = 1:2000) do frame
+# Statt dem record-Makro nutzen wir VideoStream für maximale Kontrolle
+stream = VideoStream(fig, framerate = 30)
+
+for frame in 1:2000
+    println("Frame $frame, Simulation Time: $(round(model.t, digits=4))s      \r")
     global last_plot_t
-    # Wir simulieren so lange in Echtzeit weiter, bis das nächste Plot-Intervall erreicht ist
-    while model.t < model.t_max && (model.t - last_plot_t < plot_interval)
+    global plot_interval
+    # Wir simulieren so lange weiter, bis das nächste Plot-Intervall erreicht ist
+    try
+        while model.t < model.t_max && (model.t - last_plot_t < plot_interval)
         dt = SmashMPM.courant_timestep(model, 0.2)
         SmashMPM.g2p2g!(model, dt)
         SmashMPM.grid_reset!(model.grid)
         # SmashMPM.apply_external_forces!(ext_force, model.grid, dt)
         model.t += dt
     end
+    catch
+        break
+    end
     
-    # Aktualisiere die Positionen für den aktuellen Frame im Video
+    
+    # Aktualisiere die Positionen für den aktuellen Frame
     update_positions!(buffer_positionen, model)
-    points_obs[] = buffer_positionen
+    
+    # ZWINGEND NOTWENDIG: Makie sagen, dass sich das Array verändert hat!
+    notify(points_obs)
+    
     last_plot_t = model.t
     sleep(0.001)
     
-    # Wenn die Simulation das Ende erreicht hat, brechen wir die Video-Frames ab
+    # Frame in das Video schreiben
+    recordframe!(stream)
+    
+    # Jetzt funktioniert 'break' problemlos, da wir in einer regulären for-Schleife sind
     if model.t >= model.t_max
-        # Beendet die Schleife vorzeitig, falls t_max vor Frame 2000 erreicht wird
+        println("Simulationsende erreicht bei Frame $frame.")
+        break 
     end
 end
 
+# Am Ende der Schleife das fertige Video auf der Festplatte speichern
+save("mpm_aufprall.mp4", stream)
 println("Video erfolgreich als 'mpm_aufprall.mp4' gespeichert!")
