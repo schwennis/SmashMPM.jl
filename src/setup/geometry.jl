@@ -1,6 +1,6 @@
 # Helper for converting between euler angles and rotation matrices
 # Used to orient cylinders and rectangular prisms
-function generate_rotation_matrix(roll::T, pitch::T, yaw::T) where T
+function generate_rotation_matrix(roll::T, pitch::T, yaw::T) where {T}
     R_x = @SMatrix [
         1      0           0      ;
         0  cos(roll)  -sin(roll)  ;
@@ -34,8 +34,8 @@ abstract type AbstractShape end
 # ---------------------------------------------------------------------------- #
 
 @kwdef struct Sphere{T} <: AbstractShape
-    center::SVector{3, T}
     radius::T
+    center::SVector{3, T} = zero(SVector{3, typeof(T)})
 end
 
 """
@@ -114,10 +114,10 @@ end
 # ---------------------------------------------------------------------------- #
 
 @kwdef struct Cylinder{T} <: AbstractShape
-    center::SVector{3, T}
     radius::T
     height::T
-    euler_angles::SVector{3, T}  # (roll, pitch, yaw) in radians
+    center::SVector{3, T} = zero(SVector{3, typeof(T)})
+    euler_angles::SVector{3, T} = zero(SVector{3, typeof(T)}) # (roll, pitch, yaw) in radians
 end
 
 """

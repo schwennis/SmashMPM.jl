@@ -5,17 +5,17 @@
 # ------------------------------------------------------------------------ #
 @testset "SimulationSetup Initialization & Type Stability" begin
     # Test Float64
-    setup_f64 = SimulationSetup(dx=0.1, t_end=1.0)
+    setup_f64 = SimulationSetup(dx=Float64(0.1), t_max=Float64(1.0))
     @test setup_f64.dx === 0.1
     @test typeof(setup_f64.CFL_number) == Float64
     
     # Test Float32 (Wichtig für GPU Memory)
-    setup_f32 = SimulationSetup(dx=0.1f0, t_end=1.0f0, CFL_number=0.4f0)
+    setup_f32 = SimulationSetup(dx=Float32(0.1), t_max=Float32(1.0), CFL_number=Float32(0.4))
     @test setup_f32.dx === 0.1f0
     @test typeof(setup_f32.CFL_number) == Float32
 
     # Typstabilität des Konstruktors selbst prüfen
-    @inferred SimulationSetup(dx=0.05, t_end=2.0)
+    @inferred SimulationSetup(dx=Float64(0.05), t_max=Float64(2.0))
 end
 
 # ------------------------------------------------------------------------ #
@@ -43,15 +43,15 @@ end
     
     # Erstelle Dummy-Setups
     T = Float64
-    setup = SimulationSetup(dx=0.1, t_end=1.0, ppc_1d=2)
+    setup = SimulationSetup(dx=0.1, t_max=1.0, ppc_1d=2)
 
     # -- ACHTUNG: Hier deine echten Material-Konstruktoren nutzen --
     # Wir nehmen an, du hast z.B. ein LinearElastic und ein NeoHookean Material
     mat1 = LinearElastic(ρ=1000.0, E=1e6, ν=0.3)
     mat2 = NeoHookean(ρ=2000.0, E=5e6, ν=0.4)
 
-    sphere1 = Sphere(SVector(0.0, 0.0, 0.0), 0.5)
-    sphere2 = Sphere(SVector(2.0, 0.0, 0.0), 0.3)
+    sphere1 = Sphere(0.5, SVector(0.0, 0.0, 0.0))
+    sphere2 = Sphere(0.3, SVector(2.0, 0.0, 0.0))
     # Wenn du Zylinder schon drin hast, teste auch verschiedene Shapes!
     # cylinder = Cylinder(SVector(2.0,0.0,0.0), 0.5, 1.0, SVector(0.0,0.0,0.0))
 

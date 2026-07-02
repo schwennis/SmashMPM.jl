@@ -10,7 +10,7 @@ mat_state = get_initial_material_state(mat)
 
 @testset "Constructors & Type Inference" begin
     # Test particle creation and automatic identity matrix assignment for F
-    p = @inferred Particle(pos, mass, vol, mat_state)
+    p = @inferred Particle(1, pos, mass, vol, mat_state)
     @test p.F == one(SMatrix{3,3,T,9})
     @test p.mass === mass
 
@@ -20,7 +20,7 @@ mat_state = get_initial_material_state(mat)
 end
 
 @testset "SoAParticleSet & Type Stability & Memory Layout" begin
-    p = Particle(pos, mass, vol, mat_state)
+    p = Particle(1, pos, mass, vol, mat_state)
     particles_vec = [p, p, p]
     
     soa_set = SoAParticleSet(particles_vec, mat, KernelAbstractions.CPU())

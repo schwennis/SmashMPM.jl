@@ -5,9 +5,9 @@
     padding::Int = 2
 
     # Properties
-    CFL_number::T = 0.4
+    CFL_number::T = typeof(dx)(0.4)
     t_max::T
-    dt_max::T = 0.01
+    dt_max::T = typeof(dx)(0.01)
     ppc_1d::Int = 2
     particle_set_type::Type{P} = SoAParticleSet
     boundary_condition::BC = NoBoundaryCondition()

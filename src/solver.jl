@@ -18,7 +18,7 @@ end
 @kernel function g2p2g_kernel!(
     state_old, state_new,
     particle_set,
-    origin, inv_dx::T, padding, spline,
+    origin, inv_dx::T, spline,
     dt::T
 ) where T
     p_idx = @index(Global, Linear)
@@ -31,7 +31,7 @@ end
     vel = zero(SVector{3, T})
     B = zero(SMatrix{3, 3, T, 9})
 
-    grid_pos_old = get_grid_position(pos_old, inv_dx, origin, padding)
+    grid_pos_old = get_grid_position(pos_old, inv_dx, origin)
     base_node_old = get_support_base(spline, grid_pos_old)
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
 
@@ -80,7 +80,7 @@ end
     affine = - dt * vol_new * σ * M_inv(spline, inv_dx) + mass * C
 
     # P2G: Transfer updated particle state to state_new
-    grid_pos_new = get_grid_position(particle_set.particles.pos[p_idx], inv_dx, origin, padding)
+    grid_pos_new = get_grid_position(particle_set.particles.pos[p_idx], inv_dx, origin)
     base_node_new = get_support_base(spline, grid_pos_new)
     # iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
     for di in iterator_i, dj in iterator_j, dk in iterator_k
@@ -113,14 +113,13 @@ function g2p2g!(model::MPMModel, dt)
 
     origin = grid.origin
     inv_dx = grid.inv_dx
-    padding = grid.padding
 
     backend = model.backend
 
     kernel = g2p2g_kernel!(backend)
 
     foreach(particle_sets) do particle_set
-        kernel(grid.state_old, grid.state_new, particle_set, origin, inv_dx, padding, spline, dt;
+        kernel(grid.state_old, grid.state_new, particle_set, origin, inv_dx, spline, dt;
                ndrange=length(particle_set.particles.pos))
     end
 

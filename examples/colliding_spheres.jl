@@ -22,8 +22,8 @@ center_projectile = center_target + SVector(dist, impact_parameter, 0.0)
 shape_projectile = SmashMPM.Sphere(center=center_projectile, radius=R_projectile)
 body_projectile = Body(shape_projectile, v_projectile, zero(v_projectile), mat_projectile)
 
-dx = 0.05
-Setup = SimulationSetup(dx=0.05, t_max=2*dist/vel_0, padding=4, ppc_1d=2, CFL_number=0.4, dt_max=1e-3)
+dx = 0.1
+Setup = SimulationSetup(dx=dx, t_max=2*dist/vel_0, padding=3, ppc_1d=2, CFL_number=0.4, dt_max=1e-3)
 model = build_mpm_model((body_target, body_projectile), Setup)
 
 particle_sets = model.particle_sets
@@ -97,7 +97,7 @@ record(fig, "mpm_aufprall.mp4", frame_iterator = 1:2000) do frame
     global last_plot_t
     # Wir simulieren so lange in Echtzeit weiter, bis das nächste Plot-Intervall erreicht ist
     while model.t < model.t_max && (model.t - last_plot_t < plot_interval)
-        dt = SmashMPM.courant_timestep(model, 0.5)
+        dt = SmashMPM.courant_timestep(model, 0.2)
         SmashMPM.g2p2g!(model, dt)
         SmashMPM.grid_reset!(model.grid)
         # SmashMPM.apply_external_forces!(ext_force, model.grid, dt)
