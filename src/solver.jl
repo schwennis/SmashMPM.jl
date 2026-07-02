@@ -21,7 +21,7 @@ end
     origin, inv_dx::T, spline,
     dt::T
 ) where T
-    mass_cutoff = 1e-8
+    mass_cutoff = 1e-14
 
     p_idx = @index(Global, Linear)
 
@@ -69,9 +69,10 @@ end
     material = particle_set.material
     mat_state = particle_set.particles.mat_state[p_idx]
 
-    σ, mat_state_new = material_model(material, mat_state, F_old, C, V0, mass, dt)
+    F_new = (I + C * dt) * F_old
+    particle_set.particles.F[p_idx] = F_new
+    σ, mat_state_new = material_model(material, mat_state, F_new, C, V0, mass, dt)
     particle_set.particles.mat_state[p_idx] = mat_state_new
-    particle_set.particles.F[p_idx] = (I + C * dt) * particle_set.particles.F[p_idx]
     J = det(particle_set.particles.F[p_idx])
     vol_new = J * V0
 

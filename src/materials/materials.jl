@@ -13,6 +13,5 @@ end
 # ---------------------------------------------------------------------------- #
 #                        Material Model Implementations                        #
 # ---------------------------------------------------------------------------- #
-include("NeoHookean.jl")
-include("LinearElastic.jl")
+include("hyperelastic.jl")
 include("no_material_model.jl")
