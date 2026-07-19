@@ -11,7 +11,7 @@
 #                                    field overlay                (CairoMakie)
 #
 # Requirements: SmashMPM, StaticArrays, GLMakie, CairoMakie, FFMPEG
-# Usage:        julia --project sphere_impact_example.jl
+# 
 # =============================================================================
  
 using SmashMPM
@@ -24,7 +24,7 @@ using FFMPEG
 # Configuration
 # -----------------------------------------------------------------------
 const FPS                 = 30       # output video framerate
-const TIME_FACTOR         = 0.2      # slow-motion factor applied to sim time
+const TIME_FACTOR         = 0.01      # slow-motion factor applied to sim time
 const MAX_FRAMES          = 2000     # safety cap on the number of rendered frames
 const MAX_PARTICLES_WARN  = 100_000  # print a performance warning above this count
 const MAX_PARTICLES_ERROR = 200_000  # abort above this count
@@ -58,7 +58,7 @@ function build_bodies()
     dist = R_target + R_projectile + 0.1
     impact_parameter = 0.5 * R_target
     mat_projectile = NeoHookean(ρ=1000.0, E=1e6, ν=0.3)
-    vel_0 = 10.0
+    vel_0 = 100.0
     v_projectile = vel_0 * SVector(-1.0, 0.0, 0.0)
     center_projectile = center_target + SVector(dist, 0.0, impact_parameter)
     shape_projectile = SmashMPM.Sphere(center=center_projectile, radius=R_projectile)
@@ -324,6 +324,8 @@ function run_simulation!(model, vis; max_frames=MAX_FRAMES)
     stream_slice = CairoMakie.VideoStream(vis.fig_slice, framerate=FPS)
  
     println("\nStarting simulation and video recording...")
+    time_start = time()
+    nr_steps_calculated = 0
  
     for frame in 1:max_frames
         print("Frame $frame, Simulation Time: $(round(model.t, digits=4))s/$(round(model.t_max, digits=4))s      \r")
@@ -334,6 +336,7 @@ function run_simulation!(model, vis; max_frames=MAX_FRAMES)
                 SmashMPM.g2p2g!(model, dt)
                 SmashMPM.grid_reset!(model.grid)
                 model.t += dt
+                nr_steps_calculated += 1
             end
         catch e
             println("\nSimulation interrupted due to an error: ", e)
@@ -364,7 +367,10 @@ function run_simulation!(model, vis; max_frames=MAX_FRAMES)
         CairoMakie.recordframe!(stream_slice)
  
         if model.t >= model.t_max
-            println("\nSimulation completed at frame $frame.")
+            time_end = time()
+            elapsed = time_end - time_start
+            println("\nSimulation completed in $(round(elapsed, digits=2)) seconds at frame $frame.")
+            println("Total steps calculated: $nr_steps_calculated, meaning an average of $(round(nr_steps_calculated / elapsed, digits=2)) steps per second.")
             break
         end
     end
@@ -382,7 +388,7 @@ function main()
     dx = 0.04
     body_target, body_projectile, dist, vel_0 = build_bodies()
  
-    setup = SimulationSetup(dx=dx, t_max=2 * dist / vel_0 * 5, padding=5, ppc_1d=2,
+    setup = SimulationSetup(dx=dx, t_max=2 * dist / vel_0 * 30, padding=10, ppc_1d=2,
                              CFL_number=0.4, dt_max=1e-3)
     model = build_mpm_model((body_target, body_projectile), setup)
  

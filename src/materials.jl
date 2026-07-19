@@ -13,5 +13,5 @@ end
 # ---------------------------------------------------------------------------- #
 #                        Material Model Implementations                        #
 # ---------------------------------------------------------------------------- #
-include("hyperelastic.jl")
-include("no_material_model.jl")
+include("materials/hyperelastic.jl")
+include("materials/no_material_model.jl")

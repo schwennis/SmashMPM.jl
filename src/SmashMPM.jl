@@ -14,7 +14,7 @@ using WriteVTK
 
 include("helpers.jl")
 
-include("materials/materials.jl")
+include("materials.jl")
 export AbstractMaterial, AbstractMaterialState, NoMaterialState
 export material_model, get_soundspeed, get_initial_material_state
 export NeoHookean, LinearElastic, NoMaterialModel
@@ -24,10 +24,10 @@ export QuadraticSpline
 export shapefunction
 
 
-include("particles/particles.jl")
+include("particles.jl")
 export AbstractParticleSet, Particle, SoAParticleSet
 
-include("grids/grid.jl")
+include("grid.jl")
 export AbstractGrid, DenseGrid, GridNode
 
 include("boundary_conditions.jl")
