@@ -60,10 +60,10 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     particle_counter = 1
     soundspeeds = Vector{T}()
     particle_sets = map(bodies_data) do data
-        mat_cache_type = typeof(get_initial_material_state(data.material))
+        mat_state_type = typeof(get_initial_material_state(data.material))
         
         # Array auf CPU anlegen
-        particle_vector = Vector{Particle{T, mat_cache_type}}(undef, length(data.pos))
+        particle_vector = Vector{Particle{T, mat_state_type}}(undef, length(data.pos))
         @inbounds for i in eachindex(data.pos)
             # Wichtig: initial_material_state frisch generieren (oder deepcopy), 
             # damit nicht alle Partikel denselben Referenz-Speicher teilen!

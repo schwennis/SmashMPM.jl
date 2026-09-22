@@ -77,3 +77,10 @@ function AoSoAParticleSet(particle_vector::Vector{Particle{T,MS}}, material::Mat
         AoSoA, AoSoA_buffer, material, block_size, active_blocks, max_blocks
     )
 end
+
+
+@inline function particle_block_and_lane(aosoa::AoSoAParticleSet{BS}, p_idx::Int) where {BS}
+    block = (p_idx - 1) ÷ BS + 1
+    lane  = (p_idx - 1) % BS + 1
+    return block, lane
+end

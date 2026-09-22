@@ -8,6 +8,19 @@ struct LinearElastic{T}<:AbstractMaterial
     c::T
 end
 
+"""
+Linear elastic material model constuctor taking either Young's modulus and Poisson's ratio or Lame parameters.
+
+# Arguments
+- `E`: Young's modulus
+- `ν`: Poisson's ratio
+- `ρ`: Density
+- `λ`: Lame parameter
+- `μ`: Shear modulus
+
+# Returns
+- A `LinearElastic` object.
+"""
 function LinearElastic(;E=nothing, ν=nothing, ρ=nothing, λ=nothing, μ=nothing)
     if isnothing(ρ)
         error("Density ρ must be provided")
@@ -24,12 +37,13 @@ function LinearElastic(;E=nothing, ν=nothing, ρ=nothing, λ=nothing, μ=nothin
     return LinearElastic{typeof(λ)}(μ, λ, ρ, c)
 end
 
+
 function get_initial_material_state(::LinearElastic)
     return NoMaterialState()
 end
 
 
-@inline function material_model(material::LinearElastic{T}, mat_cache::NoMaterialState, F, C, V0, m, dt) where {T}
+@inline function material_model(material::LinearElastic{T}, mat_state::NoMaterialState, F, C, V0, m, dt) where {T}
     μ = material.μ
     λ = material.λ
 
@@ -39,10 +53,10 @@ end
     
     σ = 2 * μ * ε + λ * tr(ε) * I
 
-    return σ, mat_cache
+    return σ, mat_state
 end
 
-function get_soundspeed(material::LinearElastic{T}, material_cache::NoMaterialState) where {T}
+function get_soundspeed(material::LinearElastic{T}, mat_state::NoMaterialState) where {T}
     return material.c
 end
 
