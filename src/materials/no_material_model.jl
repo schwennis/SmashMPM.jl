@@ -14,6 +14,6 @@ end
     return σ, mat_state
 end
 
-function get_soundspeed(material::NoMaterialModel, material_cache::NoMaterialState)
+function get_soundspeed(material::NoMaterialModel, mat_state::NoMaterialState)
     return 0
 end

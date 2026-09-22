@@ -53,3 +53,8 @@ function SoAParticleSet(particle_vector::Vector{Particle{T,MS}},
     SoA_buffer = _allocate_soa(backend, particle_vector)
     return SoAParticleSet{MaterialType, typeof(SoA)}(SoA, SoA_buffer, material)
 end
+
+
+function get_particle_index(soa::SoAParticleSet, p_idx::Int)
+    return p_idx
+end

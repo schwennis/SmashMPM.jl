@@ -10,7 +10,8 @@
 ) where T
     mass_cutoff = eps(T) * 100
 
-    p_idx = @index(Global, Linear)
+    i = @index(Global, Linear)
+    p_idx = get_particle_index(particle_set, i)
 
     # Extract particle properties
     pos_old = particle_set.particles.pos[p_idx]
