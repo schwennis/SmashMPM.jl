@@ -48,7 +48,6 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     end
 
     # Create Grid
-    # Compute grid Size 
     min_corner, max_corner = bounding_box(all_positions)
     grid_length = max_corner - min_corner .+ particle_spacing
     N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * setup.padding
@@ -58,31 +57,32 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     
     # Create Particle Sets
     particle_counter = 1
-    soundspeeds = Vector{T}()
     particle_sets = map(bodies_data) do data
         mat_state_type = typeof(get_initial_material_state(data.material))
+        n_p = length(data.pos)
         
-        # Create array on CPU
-        particle_vector = Vector{Particle{T, mat_state_type}}(undef, length(data.pos))
-        @inbounds for i in eachindex(data.pos)
-                # Wichtig: initial_material_state frisch generieren (oder deepcopy), 
-                # damit nicht alle Partikel denselben Referenz-Speicher teilen!
-            particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], deepcopy(get_initial_material_state(data.material)))
+        # Lokale Arrays pro Body auf CPU
+        particle_vector = Vector{Particle{T, mat_state_type}}(undef, n_p)
+        soundspeeds_cpu = Vector{T}(undef, n_p)
+
+        @inbounds for i in 1:n_p
+            state_i = get_initial_material_state(data.material)
+            particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], state_i)
+            soundspeeds_cpu[i] = get_soundspeed(data.material, state_i)
             particle_counter += 1
-            push!(soundspeeds, get_soundspeed(data.material, particle_vector[i].mat_state))
         end
 
-        soundspeeds = SVector{length(soundspeeds), T}(soundspeeds)  # Convert to static vector for performance on GPU
-        
-        # Transfer To backend and return as SoA
+        # Daten für initial_p2g! auf Backend laden
+        pos_dev         = _to_backend(setup.backend, data.pos)
+        vel_dev         = _to_backend(setup.backend, data.vel)
+        mass_dev        = _to_backend(setup.backend, data.mass)
+        soundspeeds_dev = _to_backend(setup.backend, soundspeeds_cpu)
+
+        initial_p2g!(grid, pos_dev, vel_dev, mass_dev, soundspeeds_dev, setup.shapefunction)
+
+        # Return ParticleSet auf dem Backend
         return setup.particle_set_type(particle_vector, data.material, setup.backend)
     end
-
-    # Initialize velocities of grid
-    for data in bodies_data
-        initial_p2g!(grid, data.pos, data.vel, data.mass, soundspeeds, setup.shapefunction)
-    end
-
     
     return MPMModel(
         particle_sets, 
@@ -96,4 +96,8 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
         setup.dt_max,
         setup.CFL_number
     )
+end
+
+function max_wavespeed(grid::DenseGrid)
+    return maximum(grid.state_old.wave_speed)
 end

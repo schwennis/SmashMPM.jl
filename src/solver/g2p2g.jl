@@ -96,8 +96,8 @@
     end
 
 end
-
-function g2p2g!(model::MPMModel, dt)
+ 
+function g2p2g!(model::MPMModel{T}, dt::T) where T
     grid = model.grid
     particle_sets = model.particle_sets
     spline = model.shapefunction

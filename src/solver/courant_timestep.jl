@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------- #
 #                               Courant Timestep                               #
 # ---------------------------------------------------------------------------- #
-function courant_timestep(model::MPMModel, cfl_factor::T=0.5) where {T} 
+function courant_timestep(model::MPMModel{T}, cfl_factor::T=0.5) where {T} 
     # Extract necessary information from the model
     grid = model.grid
    
