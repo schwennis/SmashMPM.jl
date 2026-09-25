@@ -52,7 +52,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     min_corner, max_corner = bounding_box(all_positions)
     grid_length = max_corner - min_corner .+ particle_spacing
     N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * setup.padding
-    origin = min_corner .- (setup.padding) * setup.dx .- 0.5 * particle_spacing
+    origin = min_corner .- (setup.padding) * setup.dx .- T(0.5) * particle_spacing
 
     grid = DenseGrid(setup.dx, N, origin, setup.padding, setup.backend)
     
@@ -62,17 +62,19 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     particle_sets = map(bodies_data) do data
         mat_state_type = typeof(get_initial_material_state(data.material))
         
-        # Array auf CPU anlegen
+        # Create array on CPU
         particle_vector = Vector{Particle{T, mat_state_type}}(undef, length(data.pos))
         @inbounds for i in eachindex(data.pos)
-            # Wichtig: initial_material_state frisch generieren (oder deepcopy), 
-            # damit nicht alle Partikel denselben Referenz-Speicher teilen!
+                # Wichtig: initial_material_state frisch generieren (oder deepcopy), 
+                # damit nicht alle Partikel denselben Referenz-Speicher teilen!
             particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], deepcopy(get_initial_material_state(data.material)))
             particle_counter += 1
             push!(soundspeeds, get_soundspeed(data.material, particle_vector[i].mat_state))
         end
+
+        soundspeeds = SVector{length(soundspeeds), T}(soundspeeds)  # Convert to static vector for performance on GPU
         
-        # Transfer aufs Backend und Rückgabe als SoA
+        # Transfer To backend and return as SoA
         return setup.particle_set_type(particle_vector, data.material, setup.backend)
     end
 
