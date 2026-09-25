@@ -1,3 +1,260 @@
+"""
+recompiling SmashMPM finished.
+  1 dependency successfully precompiled in 3 seconds. 97 already precompiled.
+Selected Backend: CUDABackend | Precision: Float32
+Building simulation setup...
+Building MPM model...
+Model built successfully with 66304 particles and a grid of size (53, 45, 45).
+
+Starting simulation and video recording...
+Frame 1, Simulation Time: 0.0s/0.42s      
+Simulation interrupted due to an error: UndefVarError(:T, 0x00000000000098b6, Main)
+Videos successfully saved as 'mpm_impact_perspective.mp4' and 'mpm_impact_xz_slice.mp4'!
+PS C:\Users\SDW2RT\programming\JuliaStuff\SmashMPM.jl\examples\colliding_spheres> julia --project=../.. .\colliding_spheres.jl
+Selected Backend: CUDABackend | Precision: Float32
+Building simulation setup...
+Building MPM model...
+Model built successfully with 66304 particles and a grid of size (53, 45, 45).
+
+Starting simulation and video recording...
+Frame 1, Simulation Time: 0.0s/0.42s      
+Simulation interrupted due to an error: GPU compilation of MethodInstance for SmashMPM.gpu_g2p2g_kernel!(::KernelAbstractions.CompilerMetadata{KernelAbstractions.NDIteration.DynamicSize, KernelAbstractions.NDIteration.DynamicCheck, Nothing, CartesianIndices{1, Tuple{Base.OneTo{Int64}}}, KernelAbstractions.NDIteration.NDRange{1, KernelAbstractions.NDIteration.DynamicSize, KernelAbstractions.NDIteration.DynamicSize, CartesianIndices{1, Tuple{Base.OneTo{Int64}}}, CartesianIndices{1, Tuple{Base.OneTo{Int64}}}}}, ::StructArrays.StructArray{GridNode{Float32}, 3, @NamedTuple{mass::CuDeviceArray{Float32, 3, 1}, momentum::StructArrays.StructArray{SVector{3, Float32}, 3, Tuple{CuDeviceArray{Float32, 3, 1}, CuDeviceArray{Float32, 3, 1}, CuDeviceArray{Float32, 3, 1}}, Int64}, wave_speed::CuDeviceArray{Float32, 3, 1}}, Int64}, ::StructArrays.StructArray{GridNode{Float32}, 3, @NamedTuple{mass::CuDeviceArray{Float32, 3, 1}, momentum::StructArrays.StructArray{SVector{3, Float32}, 3, Tuple{CuDeviceArray{Float32, 3, 1}, CuDeviceArray{Float32, 3, 1}, CuDeviceArray{Float32, 3, 1}}, Int64}, wave_speed::CuDeviceArray{Float32, 3, 1}}, Int64}, ::SoAParticleSet{NeoHookean{Float32}, StructArrays.StructVector{Particle{Float32, NoMaterialState}, @NamedTuple{id::CuArray{UInt32, 1, CUDACore.DeviceMemory}, pos::StructArrays.StructVector{SVector{3, Float32}, Tuple{CuArray{Float32, 1, CUDACore.DeviceMemory}, CuArray{Float32, 1, CUDACore.DeviceMemory}, CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64}, mass::CuArray{Float32, 1, CUDACore.DeviceMemory}, initial_volume::CuArray{Float32, 1, CUDACore.DeviceMemory}, F::CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory}, mat_state::CuArray{NoMaterialState, 1, CUDACore.DeviceMemory}}, Int64}}, ::SVector{3, Float32}, ::Float32, ::QuadraticSpline, ::Float32) failed
+KernelError: passing non-bitstype argument
+
+Argument 5 to your kernel function is of type SoAParticleSet{NeoHookean{Float32}, StructArrays.StructVector{Particle{Float32, NoMaterialState}, @NamedTuple{id::CUDACore.CuArray{UInt32, 1, CUDACore.DeviceMemory}, pos::StructArrays.StructVector{SVector{3, Float32}, Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64}, mass::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, initial_volume::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, F::CUDACore.CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory}, mat_state::CUDACore.CuArray{NoMaterialState, 1, CUDACore.DeviceMemory}}, Int64}}, which is not a bitstype:
+  .particles is of type StructArrays.StructVector{Particle{Float32, NoMaterialState}, @NamedTuple{id::CUDACore.CuArray{UInt32, 1, CUDACore.DeviceMemory}, pos::StructArrays.StructVector{SVector{3, Float32}, Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64}, mass::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, initial_volume::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, F::CUDACore.CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory}, mat_state::CUDACore.CuArray{NoMaterialState, 1, CUDACore.DeviceMemory}}, Int64} which is not isbits.
+    .components is of type @NamedTuple{id::CUDACore.CuArray{UInt32, 1, CUDACore.DeviceMemory}, pos::StructArrays.StructVector{SVector{3, Float32}, Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64}, mass::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, initial_volume::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, F::CUDACore.CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory}, mat_state::CUDACore.CuArray{NoMaterialState, 1, CUDACore.DeviceMemory}} which is not isbits.
+      .id is of type CUDACore.CuArray{UInt32, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .pos is of type StructArrays.StructVector{SVector{3, Float32}, Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64} which is not isbits.
+        .components is of type Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}} whichis not isbits.
+          .1 is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+            .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+              .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+                .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+                  .lock is of type ReentrantLock which is not isbits.
+                    .locked_by is of type Union{Nothing, Task} which is not isbits.
+                    .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .stream is of type CUDACore.CuStream which is not isbits.
+                    .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+                .finalizer is of type Any which is not isbits.
+                .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+          .2 is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+            .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+              .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+                .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+                  .lock is of type ReentrantLock which is not isbits.
+                    .locked_by is of type Union{Nothing, Task} which is not isbits.
+                    .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .stream is of type CUDACore.CuStream which is not isbits.
+                    .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+                .finalizer is of type Any which is not isbits.
+                .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+          .3 is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+            .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+              .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+                .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+                  .lock is of type ReentrantLock which is not isbits.
+                    .locked_by is of type Union{Nothing, Task} which is not isbits.
+                    .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .stream is of type CUDACore.CuStream which is not isbits.
+                    .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+                .finalizer is of type Any which is not isbits.
+                .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .mass is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .initial_volume is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .F is of type CUDACore.CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .mat_state is of type CUDACore.CuArray{NoMaterialState, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+  .particles_buffer is of type StructArrays.StructVector{Particle{Float32, NoMaterialState}, @NamedTuple{id::CUDACore.CuArray{UInt32, 1, CUDACore.DeviceMemory}, pos::StructArrays.StructVector{SVector{3, Float32}, Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64}, mass::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, initial_volume::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, F::CUDACore.CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory}, mat_state::CUDACore.CuArray{NoMaterialState, 1, CUDACore.DeviceMemory}}, Int64} which is not isbits.
+    .components is of type @NamedTuple{id::CUDACore.CuArray{UInt32, 1, CUDACore.DeviceMemory}, pos::StructArrays.StructVector{SVector{3, Float32}, Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64}, mass::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, initial_volume::CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, F::CUDACore.CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory}, mat_state::CUDACore.CuArray{NoMaterialState, 1, CUDACore.DeviceMemory}} which is not isbits.
+      .id is of type CUDACore.CuArray{UInt32, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .pos is of type StructArrays.StructVector{SVector{3, Float32}, Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}}, Int64} which is not isbits.
+        .components is of type Tuple{CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}, CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory}} whichis not isbits.
+          .1 is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+            .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+              .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+                .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+                  .lock is of type ReentrantLock which is not isbits.
+                    .locked_by is of type Union{Nothing, Task} which is not isbits.
+                    .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .stream is of type CUDACore.CuStream which is not isbits.
+                    .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+                .finalizer is of type Any which is not isbits.
+                .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+          .2 is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+            .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+              .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+                .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+                  .lock is of type ReentrantLock which is not isbits.
+                    .locked_by is of type Union{Nothing, Task} which is not isbits.
+                    .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .stream is of type CUDACore.CuStream which is not isbits.
+                    .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+                .finalizer is of type Any which is not isbits.
+                .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+          .3 is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+            .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+              .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+                .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+                  .lock is of type ReentrantLock which is not isbits.
+                    .locked_by is of type Union{Nothing, Task} which is not isbits.
+                    .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .stream is of type CUDACore.CuStream which is not isbits.
+                    .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+                .finalizer is of type Any which is not isbits.
+                .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .mass is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .initial_volume is of type CUDACore.CuArray{Float32, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .F is of type CUDACore.CuArray{SMatrix{3, 3, Float32, 9}, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+      .mat_state is of type CUDACore.CuArray{NoMaterialState, 1, CUDACore.DeviceMemory} which is not isbits.
+        .data is of type GPUArrays.DataRef{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+          .rc is of type GPUArrays.RefCounted{CUDACore.Managed{CUDACore.DeviceMemory}} which is not isbits.
+            .obj is of type CUDACore.Managed{CUDACore.DeviceMemory} which is not isbits.
+              .lock is of type ReentrantLock which is not isbits.
+                .locked_by is of type Union{Nothing, Task} which is not isbits.
+                .cond_wait is of type Base.GenericCondition{Base.Threads.SpinLock} which is not isbits.
+                  .waitq is of type Base.IntrusiveLinkedList{Task} which is not isbits.
+                    .head is of type Union{Nothing, Task} which is not isbits.
+                    .tail is of type Union{Nothing, Task} which is not isbits.
+                  .lock is of type Base.Threads.SpinLock which is not isbits.
+              .stream is of type CUDACore.CuStream which is not isbits.
+                .ctx is of type Union{Nothing, CUDACore.CuContext} which is not isbits.
+            .finalizer is of type Any which is not isbits.
+            .count is of type Base.Threads.Atomic{Int64} which is not isbits.
+
+
+Only bitstypes, which are "plain data" types that are immutable
+and contain no references to other values, can be used in GPU kernels.
+For more information, see the `Base.isbitstype` function.
+
+Videos successfully saved as 'mpm_impact_perspective.mp4' and 'mpm_impact_xz_slice.mp4'!
+"""
+
 # =============================================================================
 # Sphere Impact Example — SmashMPM.jl
 #
