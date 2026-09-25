@@ -338,6 +338,8 @@ active, so each backend must be re-activated immediately before its
 function run_simulation!(model, vis; max_frames=MAX_FRAMES)
     plot_interval = 1.0 / FPS * TIME_FACTOR
     last_plot_t = 0.0
+
+    T = eltype(model.t)
  
     GLMakie.activate!()
     screen = GLMakie.display(vis.fig_persp)
