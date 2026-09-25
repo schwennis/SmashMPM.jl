@@ -16,15 +16,32 @@
  
 using SmashMPM
 using StaticArrays
+using KernelAbstractions: KernelAbstractions, CPU, Backend
+using CUDA
 using GLMakie
 import CairoMakie   # `import`, not `using` — avoids name clashes with GLMakie
 using FFMPEG
- 
+
+# To use GPU backends, import the corresponding package, for example:
+# using CUDA        # const BACKEND = CUDABackend()
+# using AMDGPU      # const BACKEND = ROCBackend()
+# using Metal       # const BACKEND = MetalBackend()
+# using oneAPI      # const BACKEND = oneAPIBackend()
+
 # -----------------------------------------------------------------------
-# Configuration
+# Configuration & Backend Selection
 # -----------------------------------------------------------------------
+const BACKEND = CUDABackend()
+
+"""
+    default_float_type(backend)
+
+Returns Float32 for GPU / accelerator backends and Float64 for CPU.
+"""
+default_float_type(backend::Backend) = backend isa CPU ? Float64 : Float32
+
 const FPS                 = 30       # output video framerate
-const TIME_FACTOR         = 0.01      # slow-motion factor applied to sim time
+const TIME_FACTOR         = 0.01     # slow-motion factor applied to sim time
 const MAX_FRAMES          = 2000     # safety cap on the number of rendered frames
 const MAX_PARTICLES_WARN  = 100_000  # print a performance warning above this count
 const MAX_PARTICLES_ERROR = 200_000  # abort above this count
@@ -37,7 +54,7 @@ const OUTPUT_SLICE       = "mpm_impact_xz_slice.mp4"
 # -----------------------------------------------------------------------
  
 """
-    build_bodies()
+    build_bodies(::Type{T}=Float64) where {T<:AbstractFloat}
  
 Construct the target and projectile bodies for this example: a large, soft
 NeoHookean target sphere at rest, and a smaller, stiffer projectile sphere
@@ -45,22 +62,22 @@ fired at it with an off-center impact parameter. Returns the two bodies
 along with the initial separation distance and impact speed (needed later
 to size the simulation duration and the velocity color scale).
 """
-function build_bodies()
+function build_bodies(::Type{T}=Float64) where {T<:AbstractFloat}
     # Target
-    R_target = 0.5
-    center_target = SVector{3,Float64}(0.0, 0.0, 0.0)
-    mat_target = NeoHookean(ρ=1000.0, E=5000, ν=0.47)
+    R_target = T(0.5)
+    center_target = SVector{3, T}(0.0, 0.0, 0.0)
+    mat_target = NeoHookean(ρ=T(1000.0), E=T(5000.0), ν=T(0.47))
     shape_target = SmashMPM.Sphere(center=center_target, radius=R_target)
     body_target = Body(shape_target, zero(center_target), zero(center_target), mat_target)
  
     # Projectile
-    R_projectile = 0.1
-    dist = R_target + R_projectile + 0.1
-    impact_parameter = 0.5 * R_target
-    mat_projectile = NeoHookean(ρ=1000.0, E=1e6, ν=0.3)
-    vel_0 = 100.0
-    v_projectile = vel_0 * SVector(-1.0, 0.0, 0.0)
-    center_projectile = center_target + SVector(dist, 0.0, impact_parameter)
+    R_projectile = T(0.1)
+    dist = R_target + R_projectile + T(0.1)
+    impact_parameter = T(0.5) * R_target
+    mat_projectile = NeoHookean(ρ=T(1000.0), E=T(1e6), ν=T(0.3))
+    vel_0 = T(100.0)
+    v_projectile = vel_0 * SVector(T(-1.0), T(0.0), T(0.0))
+    center_projectile = center_target + SVector(dist, T(0.0), impact_parameter)
     shape_projectile = SmashMPM.Sphere(center=center_projectile, radius=R_projectile)
     body_projectile = Body(shape_projectile, v_projectile, zero(v_projectile), mat_projectile)
  
@@ -77,21 +94,28 @@ volume, and consistent density) and return the total particle count.
 Aborts if the particle count exceeds the supported maximum.
 """
 function validate_model(model, dx)
+    T = eltype(model.grid.origin)
     particle_sets = model.particle_sets
+
+    F1 = first(Array(particle_sets[1].particles.F[1:1]))
+    F2 = first(Array(particle_sets[2].particles.F[1:1]))
+    v1 = first(Array(particle_sets[1].particles.initial_volume[1:1]))
+    v2 = first(Array(particle_sets[2].particles.initial_volume[1:1]))
+    m1 = first(Array(particle_sets[1].particles.mass[1:1]))
  
-    @assert particle_sets[1].particles.F[1] == one(SMatrix{3,3,Float64,9}) "Initial deformation gradient for target is not identity"
-    @assert particle_sets[2].particles.F[1] == one(SMatrix{3,3,Float64,9}) "Initial deformation gradient for projectile is not identity"
-    @assert all(particle_sets[1].particles.mass .> 0.0) "Mass for target particles is not positive"
-    @assert all(particle_sets[2].particles.mass .> 0.0) "Mass for projectile particles is not positive"
-    @assert all(particle_sets[1].particles.initial_volume .> 0.0) "Volume for target particles is not positive"
-    @assert all(particle_sets[2].particles.initial_volume .> 0.0) "Volume for projectile particles is not positive"
-    @assert particle_sets[1].particles.initial_volume[1] ≈ (dx / 2)^3 "Initial volume for target particles is not correct"
-    @assert particle_sets[2].particles.initial_volume[1] ≈ (dx / 2)^3 "Initial volume for projectile particles is not correct"
-    @assert particle_sets[1].particles.mass[1] / particle_sets[1].particles.initial_volume[1] ≈ particle_sets[1].material.ρ "Volume and mass for target particles do not match"
+    @assert F1 == one(SMatrix{3,3,T,9}) "Initial deformation gradient for target is not identity"
+    @assert F2 == one(SMatrix{3,3,T,9}) "Initial deformation gradient for projectile is not identity"
+    @assert all(Array(particle_sets[1].particles.mass) .> 0.0) "Mass for target particles is not positive"
+    @assert all(Array(particle_sets[2].particles.mass) .> 0.0) "Mass for projectile particles is not positive"
+    @assert all(Array(particle_sets[1].particles.initial_volume) .> 0.0) "Volume for target particles is not positive"
+    @assert all(Array(particle_sets[2].particles.initial_volume) .> 0.0) "Volume for projectile particles is not positive"
+    @assert v1 ≈ (dx / 2)^3 "Initial volume for target particles is not correct"
+    @assert v2 ≈ (dx / 2)^3 "Initial volume for projectile particles is not correct"
+    @assert m1 / v1 ≈ particle_sets[1].material.ρ "Volume and mass for target particles do not match"
  
     N_particles = length(particle_sets[1].particles.pos) + length(particle_sets[2].particles.pos)
     if N_particles > MAX_PARTICLES_WARN
-        println("Warning: particle count ($N_particles) is high and may impact performance.")
+        println("Warning: particle count ($N_parti cles) is high and may impact performance.")
     end
     if N_particles > MAX_PARTICLES_ERROR
         error("Particle count ($N_particles) exceeds the supported maximum of $MAX_PARTICLES_ERROR. Reduce resolution or increase available memory.")
@@ -121,9 +145,9 @@ function update_visuals!(buf_3d, buf_slice, col_slice, model, y_center, thicknes
     for (set_idx, set) in enumerate(model.particle_sets)
         c = set_idx == 1 ? target_color : projectile_color
  
-        px = set.particles.pos.x
-        py = set.particles.pos.y
-        pz = set.particles.pos.z
+        px = Array(set.particles.pos.x)
+        py = Array(set.particles.pos.y)
+        pz = Array(set.particles.pos.z)
  
         @inbounds for i in eachindex(px)
             buf_3d[idx] = Point3f(px[i], py[i], pz[i])
@@ -145,20 +169,20 @@ field on grid layer `jy`, skipping nodes whose mass is below `threshold`
 and sampling every `stride`-th node in each direction.
 """
 function compute_arrow_data(model, jy, stride, threshold, dx_grid)
-    mass = model.grid.state_old.mass
-    momx = model.grid.state_old.momentum.x
-    momz = model.grid.state_old.momentum.z
-    Nx, _, Nz = size(mass)
+    mass_slice = Array(@view model.grid.state_old.mass[:, jy, :])
+    momx_slice = Array(@view model.grid.state_old.momentum.x[:, jy, :])
+    momz_slice = Array(@view model.grid.state_old.momentum.z[:, jy, :])
+    Nx, Nz = size(mass_slice)
  
     ps = CairoMakie.Point2f[]
     ds = CairoMakie.Vec2f[]
-    speeds = Float64[]
+    speeds = Float32[]
  
     for i in 1:stride:Nx, k in 1:stride:Nz
-        m = mass[i, jy, k]
+        m = mass_slice[i, k]
         if m > threshold
-            vx = momx[i, jy, k] / m
-            vz = momz[i, jy, k] / m
+            vx = momx_slice[i, k] / m
+            vz = momz_slice[i, k] / m
             spd = sqrt(vx^2 + vz^2)
             if spd > 0
                 push!(ps, CairoMakie.Point2f(model.grid.origin[1] + (i - 1) * dx_grid,
@@ -249,7 +273,7 @@ function setup_visualization(model, N_particles, vel_0, dx)
     jy = clamp(round(Int, (slice_y_center - model.grid.origin[2]) / dx_grid) + 1, 1, Ny_grid)
  
     # Grid-mass heatmap (background), centered on the grid nodes.
-    mass_slice_obs = CairoMakie.Observable(Matrix{Float64}(model.grid.state_old.mass[:, jy, :]))
+    mass_slice_obs = CairoMakie.Observable(Array(@view model.grid.state_old.mass[:, jy, :]))
     col_range = (0.5 * 1000, 1.5 * 1000) .* dx^3  # arbitrary starting range; adjust to taste
     hm = CairoMakie.heatmap!(ax_slice, xs_nodes, zs_nodes, mass_slice_obs;
                               colormap=:inferno, colorrange=col_range)
@@ -347,7 +371,7 @@ function run_simulation!(model, vis; max_frames=MAX_FRAMES)
                          model, vis.slice_y_center, vis.slice_thickness,
                          vis.target_color_cairo, vis.projectile_color_cairo)
  
-        vis.mass_slice_obs[] = Matrix{Float64}(model.grid.state_old.mass[:, vis.jy, :])
+        vis.mass_slice_obs[] = Array(@view model.grid.state_old.mass[:, vis.jy, :])
         new_pts, new_dirs, new_speeds = compute_arrow_data(model, vis.jy, vis.arrow_stride,
                                                              vis.mass_threshold, vis.dx_grid)
         vis.arrow_points_obs[] = new_pts
@@ -384,12 +408,23 @@ end
 # Entry point
 # -----------------------------------------------------------------------
  
-function main()
-    dx = 0.04
-    body_target, body_projectile, dist, vel_0 = build_bodies()
+function main(backend::Backend=BACKEND; T::Type{<:AbstractFloat}=default_float_type(backend))
+    println("Selected Backend: $(typeof(backend)) | Precision: $T")
+
+    dx = T(0.04)
+    body_target, body_projectile, dist, vel_0 = build_bodies(T)
  
-    setup = SimulationSetup(dx=dx, t_max=2 * dist / vel_0 * 30, padding=10, ppc_1d=2,
-                             CFL_number=0.4, dt_max=1e-3)
+    println("Building simulation setup...")
+    setup = SimulationSetup(
+        dx=dx,
+        t_max=T(2 * dist / vel_0 * 30),
+        padding=10,
+        ppc_1d=2,
+        CFL_number=T(0.4),
+        dt_max=T(1e-3),
+        backend=backend
+    )
+    println("Building MPM model...")
     model = build_mpm_model((body_target, body_projectile), setup)
  
     N_particles = validate_model(model, dx)
@@ -405,5 +440,5 @@ function main()
  
     println("Videos successfully saved as '$OUTPUT_PERSPECTIVE' and '$OUTPUT_SLICE'!")
 end
- 
+
 main()
