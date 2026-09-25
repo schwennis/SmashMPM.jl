@@ -356,7 +356,7 @@ function run_simulation!(model, vis; max_frames=MAX_FRAMES)
  
         try
             while model.t < model.t_max && (model.t - last_plot_t < plot_interval)
-                dt = SmashMPM.courant_timestep(model, 0.2)
+                dt = SmashMPM.courant_timestep(model, T(0.2))
                 SmashMPM.g2p2g!(model, dt)
                 SmashMPM.grid_reset!(model.grid)
                 model.t += dt
