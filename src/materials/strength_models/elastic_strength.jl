@@ -6,6 +6,10 @@ struct ElasticStrengthModelState{T} <: AbstractStrengthModelState
     s::SMatrix{3, 3, T, 9}  # Deviatoric stress tensor 
 end
 
+function init_strength_state(::ElasticStrengthModel{T}) where {T}
+    return ElasticStrengthModelState{T}(zeros(SMatrix{3,3,T,9}))
+end
+
 
 
 function strength_model(strength_model::ElasticStrengthModel, strength_state::ElasticStrengthModelState, D_dev, W , dt)

@@ -15,9 +15,13 @@ using WriteVTK
 include("helpers.jl")
 
 include("materials.jl")
-export AbstractMaterial, AbstractMaterialState, NoMaterialState
-export material_model, get_soundspeed, get_initial_material_state
-export NeoHookean, LinearElastic, NoMaterialModel
+export AbstractMaterial, AbstractMaterialState, NoMaterialState     # Abstract types
+export material_model, get_soundspeed, get_initial_material_state   # Material model interface
+export NeoHookean, LinearElastic                                    # hyperelastic materials
+export NoMaterialModel                                              # Debugging / Fallback
+export SolidMaterial, SolidMaterialState                            # Solid materials
+# Material configs
+export Basalt, Iron
 
 include("shapefunctions.jl")
 export QuadraticSpline

@@ -7,6 +7,7 @@ abstract type AbstractMaterialState end
 # Equation of State
 abstract type AbstractEquationOfState end
 abstract type AbstractEoSState end
+init_eos_state(eos::AbstractEquationOfState) = error("init_eos_state not implemented for $(typeof(eos))")
 
 """
 Computes the equation-of-state values (in eos_state) and sound speed.
@@ -20,6 +21,7 @@ include("eos/tillotson_eos.jl") # Tillotson EoS implementation
 # Strength Model
 abstract type AbstractStrengthModel end
 abstract type AbstractStrengthModelState end
+init_strength_state(sm::AbstractStrengthModel) = error("init_strength_state not implemented for $(typeof(sm))")
 
 
 function strength_model(strength_model::AbstractStrengthModel, strength_state::AbstractStrengthModelState, D_dev, W , dt)
@@ -44,9 +46,20 @@ struct SolidMaterialState{T, EoSState<:AbstractEoSState, SMState<:AbstractStreng
 end
 
 
+function get_initial_material_state(material::SolidMaterial{T}) where {T}
+    # Initialize using model specific functions
+    eos_state, c0 = init_eos_state(material.eos)
+    strength_state = init_strength_state(material.strength_model)
+    
+    return SolidMaterialState(c0, eos_state, strength_state)
+end
+
+
 function get_soundspeed(material::SolidMaterial{T, EoS, SM}, mat_state::SolidMaterialState{T, EoS, SM}) where {T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel}
     return mat_state.c
 end
+
+
 
 
 # ---------------------------------------------------------------------------- #
