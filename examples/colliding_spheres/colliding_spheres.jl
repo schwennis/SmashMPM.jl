@@ -31,7 +31,7 @@ using FFMPEG
 # -----------------------------------------------------------------------
 # Configuration & Backend Selection
 # -----------------------------------------------------------------------
-const BACKEND = CPU()
+const BACKEND = CUDABackend()
 
 """
     default_float_type(backend)
