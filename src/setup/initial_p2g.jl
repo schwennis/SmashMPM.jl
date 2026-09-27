@@ -1,8 +1,5 @@
 @kernel function initial_p2g_kernel!(grid_state, positions, velocities, masses, soundspeeds, origin, inv_dx, spline)
     p_idx = @index(Global, Linear)
-    if p_idx > length(positions)
-        error("Particle index out of bounds in initial_p2g_kernel!")
-    end
 
     pos = positions[p_idx]
     vel = velocities[p_idx]
@@ -28,7 +25,7 @@
         @atomic :monotonic grid_state.momentum.x[i, j, k] += N * vel[1] * mass
         @atomic :monotonic grid_state.momentum.y[i, j, k] += N * vel[2] * mass
         @atomic :monotonic grid_state.momentum.z[i, j, k] += N * vel[3] * mass
-        @atomic grid_state.wave_speed[i, j, k] = max(grid_state.wave_speed[i, j, k], soundspeeds[p_idx] + norm(vel))
+        @atomic :monotonic grid_state.wave_speed[i, j, k] = max(grid_state.wave_speed[i, j, k], soundspeeds[p_idx] + norm(vel))
     end
 end
 
