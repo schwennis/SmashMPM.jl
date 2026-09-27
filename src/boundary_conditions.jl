@@ -7,34 +7,47 @@ struct NoBoundaryCondition <: AbstractBoundaryCondition end
 
 function apply_boundary_condition!(::NoBoundaryCondition, grid::DenseGrid{T, S}) where {T, S}
     # No boundary condition to apply
-    return
+    return nothing
 end
 
 # ---------------------------------------------------------------------------- #
 #                          No Slip Boundary Condition                          #
 # ---------------------------------------------------------------------------- #
-struct NoSlipBoundary{T} <: AbstractBoundaryCondition
-    mask::Array{Bool, 3}    # Mask indicating which grid nodes will be set to zero velocity
+# Kein Masken-Array mehr nötig -> 0 Byte Speicherverbrauch!
+struct NoSlipBoundary <: AbstractBoundaryCondition end
+
+@kernel function noslip_boundary_kernel!(momentum_x, momentum_y, momentum_z, padding, nx, ny, nz)
+    i, j, k = @index(Global, NTuple)
+    T = eltype(momentum_x)
+
+    # Analytischer Randcheck: Liegt der Knoten im Padding-Bereich?
+    is_boundary = (i <= padding || i > nx - padding ||
+                   j <= padding || j > ny - padding ||
+                   k <= padding || k > nz - padding)
+
+    if is_boundary
+        momentum_x[i, j, k] = zero(T)
+        momentum_y[i, j, k] = zero(T)
+        momentum_z[i, j, k] = zero(T)
+    end
 end
 
-function NoSlipBoundary(grid::DenseGrid{T,S}) where {T, S} 
-    padding = grid.padding
-    N = size(grid.state_new.mass) .- 2*padding  # Original grid size without padding
-    mask = falses(size(grid.state_new.mass))  # Initialize mask with false
-    # Set mask to true for  ghost nodes (padding region)
-    mask[1:padding, :, :] .= true
-    mask[end-padding+1:end, :, :] .= true
-    mask[:, 1:padding, :] .= true
-    mask[:, end-padding+1:end, :] .= true
-    mask[:, :, 1:padding] .= true
-    mask[:, :, end-padding+1:end] .= true
-
-    return NoSlipBoundary{T}(mask)
-end
-
-function apply_boundary_condition!(grid::DenseGrid{T, S}, bc::NoSlipBoundary{T}) where {T, S}
+function apply_boundary_condition!(::NoSlipBoundary, grid::DenseGrid{T, S}) where {T, S}
     state = grid.state_new
+    dims = size(state.mass)
+    padding = grid.padding
 
-    # Apply no-slip condition by setting velocity to zero at masked nodes
-    state.momentum .= ifelse.(bc.mask, (zero(SVector{3, T}),), state.momentum)
+    backend = KernelAbstractions.get_backend(state.mass)
+    kernel = noslip_boundary_kernel!(backend)
+
+    kernel(
+        state.momentum.x,
+        state.momentum.y,
+        state.momentum.z,
+        padding,
+        dims[1], dims[2], dims[3];
+        ndrange=dims
+    )
+
+    KernelAbstractions.synchronize(backend)
 end
