@@ -4,19 +4,18 @@
 # ---------------------------------------------------------------------------- #
 @kernel function g2p2g_kernel!(
     state_old, state_new,
-    particle_set,
+    particles, material,
     origin, inv_dx::T, spline,
     dt::T
 ) where T
     mass_cutoff = eps(T) * 100
 
-    i = @index(Global, Linear)
-    p_idx = get_particle_index(particle_set, i)
+    p_idx = @index(Global, Linear)
 
     # Extract particle properties
-    pos_old = particle_set.particles.pos[p_idx]
-    mass = particle_set.particles.mass[p_idx]
-    V0 = particle_set.particles.initial_volume[p_idx]
+    pos_old = particles.pos[p_idx]
+    mass = particles.mass[p_idx]
+    V0 = particles.initial_volume[p_idx]
 
     vel = zero(SVector{3, T})
     B = zero(SMatrix{3, 3, T, 9})
@@ -47,31 +46,33 @@
     end
 
     # Update particle velocity and position
-    particle_set.particles.pos[p_idx] = pos_old + vel * dt
+    pos_new = pos_old + vel * dt
+    particles.pos.x[p_idx] = pos_new[1]
+    particles.pos.y[p_idx] = pos_new[2]
+    particles.pos.z[p_idx] = pos_new[3]
     
     # Finalize affine velocity update
     C = B * M_inv(spline, inv_dx)
 
     # Update particle state
-    F_old = particle_set.particles.F[p_idx]
-    material = particle_set.material
-    mat_state = particle_set.particles.mat_state[p_idx]
+    F_old = particles.F[p_idx]
+    mat_state = particles.mat_state[p_idx]
 
-    F_new = (I + C * dt) * F_old
-    particle_set.particles.F[p_idx] = F_new
+    F_new = (one(SMatrix{3, 3, T, 9}) + C * dt) * F_old
+    particles.F[p_idx] = F_new
     σ, mat_state_new = material_model(material, mat_state, F_new, C, V0, mass, dt)
-    particle_set.particles.mat_state[p_idx] = mat_state_new
-    J = det(particle_set.particles.F[p_idx])
+    particles.mat_state[p_idx] = mat_state_new
+    J = det(F_new)
     vol_new = J * V0
 
 
-    soundspeed_new = get_soundspeed(particle_set.material, mat_state_new)
+    soundspeed_new = get_soundspeed(material, mat_state_new)
     wavespeed_new = soundspeed_new + norm(vel)
     
     affine = - dt * vol_new * σ * M_inv(spline, inv_dx) + mass * C
 
     # P2G: Transfer updated particle state to state_new
-    grid_pos_new = get_grid_position(particle_set.particles.pos[p_idx], inv_dx, origin)
+    grid_pos_new = get_grid_position(pos_new, inv_dx, origin)
     base_node_new = get_support_base(spline, grid_pos_new)
     # iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
     for di in iterator_i, dj in iterator_j, dk in iterator_k
@@ -110,8 +111,8 @@ function g2p2g!(model::MPMModel{T}, dt::T) where T
     kernel = g2p2g_kernel!(backend)
 
     foreach(particle_sets) do particle_set
-        kernel(grid.state_old, grid.state_new, particle_set, origin, inv_dx, spline, dt;
-               ndrange=length(particle_set.particles.pos))
+        kernel(grid.state_old, grid.state_new, particle_set.particles, particle_set.material, origin, inv_dx, spline, dt;
+               ndrange=length(particle_set.particles))
     end
 
     KernelAbstractions.synchronize(backend)
