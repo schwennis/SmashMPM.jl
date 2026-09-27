@@ -21,6 +21,18 @@ struct TillotsonState{T, EoS<:AbstractEquationOfState} <: AbstractEoSState
     e::T
 end
 
+function init_eos_state(eos::TillotsonEOS{T}) where {T}
+    # Start with p = 0, e =0
+    p0 = zero(T)
+    e0 = zero(T)
+    state = TillotsonState{T}(p0, e0)
+    
+    # Reference for Tillotson: c0 = sqrt(A / ρ0)
+    c0 = sqrt(eos.A / eos.ρ0)
+    
+    return state, c0
+end
+
 
 
 # ---------------------------------------------------------------------------- #

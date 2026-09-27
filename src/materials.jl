@@ -16,3 +16,11 @@ end
 # ---------------------------------------------------------------------------- #
 include("materials/hyperelastic.jl")
 include("materials/no_material_model.jl")
+include("materials/solid_material.jl")
+
+
+# ---------------------------------------------------------------------------- #
+#                               Material Configs                               #
+# ---------------------------------------------------------------------------- #
+include("materials/material_configs/iron.jl")
+include("materials/material_configs/basalt.jl")
