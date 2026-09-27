@@ -15,5 +15,5 @@ end
 end
 
 function get_soundspeed(material::NoMaterialModel, mat_state::NoMaterialState)
-    return 0
+    return 0.0
 end
