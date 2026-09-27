@@ -1,101 +1,208 @@
 abstract type AbstractExporter end
 
+# ---------------------------------------------------------------------------- #
+#                        Device-to-Host Transfer Helpers                       #
+# ---------------------------------------------------------------------------- #
+
+function _to_cpu_particles(particles)
+    return StructArray{eltype(particles)}((
+        id             = Array(particles.id),
+        pos            = StructArray{eltype(particles.pos)}((
+            x = Array(particles.pos.x),
+            y = Array(particles.pos.y),
+            z = Array(particles.pos.z),
+        )),
+        mass           = Array(particles.mass),
+        initial_volume = Array(particles.initial_volume),
+        F              = Array(particles.F),
+        mat_state      = Array(particles.mat_state),
+    ))
+end
+
+function _to_cpu_grid_state(state)
+    return StructArray{eltype(state)}((
+        mass       = Array(state.mass),
+        momentum   = StructArray{eltype(state.momentum)}((
+            x = Array(state.momentum.x),
+            y = Array(state.momentum.y),
+            z = Array(state.momentum.z),
+        )),
+        wave_speed = Array(state.wave_speed),
+    ))
+end
+
+function model_to_CPU(model::MPMModel)
+    if model.backend isa CPU
+        return model
+    end
+
+    cpu_particle_sets = map(model.particle_sets) do p_set
+        p_cpu  = _to_cpu_particles(p_set.particles)
+        pb_cpu = _to_cpu_particles(p_set.particles_buffer)
+        SoAParticleSet{typeof(p_set.material), typeof(p_cpu)}(
+            p_cpu,
+            pb_cpu,
+            p_set.material,
+        )
+    end
+
+    old_state_cpu = _to_cpu_grid_state(model.grid.state_old)
+    new_state_cpu = _to_cpu_grid_state(model.grid.state_new)
+
+    cpu_grid = DenseGrid{eltype(model.grid.origin), typeof(old_state_cpu)}(
+        old_state_cpu,
+        new_state_cpu,
+        model.grid.padding,
+        model.grid.origin,
+        model.grid.inv_dx,
+    )
+
+    return MPMModel(
+        cpu_particle_sets,
+        cpu_grid,
+        model.boundary_condition,
+        model.external_force,
+        model.shapefunction,
+        CPU(),
+        model.t,
+        model.t_max,
+        model.dt_max,
+        model.CFL_number,
+    )
+end
+
+# Interpolate nodal velocities to particles on the CPU
+function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, spline::AbstractShapeFunction)
+    grid_state = grid.state_old
+    T = eltype(grid_state.mass)
+
+    num_particles = length(particle_set.particles.mass)
+    velocities = Vector{SVector{3, T}}(undef, num_particles)
+
+    inv_dx = grid.inv_dx
+    origin = grid.origin
+
+    iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
+
+    @inbounds for p_idx in 1:num_particles
+        pos = particle_set.particles.pos[p_idx]
+        vel = zero(SVector{3, T})
+
+        grid_pos = get_grid_position(pos, inv_dx, origin)
+        base_node = get_support_base(spline, grid_pos)
+
+        for di in iterator_i, dj in iterator_j, dk in iterator_k
+            i = base_node[1] + di
+            j = base_node[2] + dj
+            k = base_node[3] + dk
+
+            if !checkbounds(Bool, grid_state.mass, i, j, k)
+                continue
+            end
+
+            natural_coords = grid_pos - SVector(i, j, k)
+            N = shapefunction(spline, natural_coords)
+
+            m_node = grid_state.mass[i, j, k]
+            if m_node > eps(T) * 100
+                v_grid = grid_state.momentum[i, j, k] / m_node
+                vel += N * v_grid
+            end
+        end
+        velocities[p_idx] = vel
+    end
+
+    return velocities
+end
+
+const _reconstruct_velocities_cpu = extract_velocities
+
 
 # ---------------------------------------------------------------------------- #
 #                            JLD2 Snapshot Exporter                            #
 # ---------------------------------------------------------------------------- #
+
 @kwdef struct JLD2Exporter <: AbstractExporter
     output_dir::String
     filename_prefix::String = "sim_"
 end
 
-function write_output(exporter::JLD2Exporter, model::MPMModel, step::Int)
+function write_output(exporter::JLD2Exporter, model::MPMModel, step::Int, time::Real = model.t)
     mkpath(exporter.output_dir)
-    name = "$(exporter.filename_prefix)$(Printf.@sprintf("%06d", step)).jld2"
-    output_file = joinpath(exporter.output_dir, name)
+    padded_idx = Printf.@sprintf("%06d", step)
+    output_file = joinpath(exporter.output_dir, "$(exporter.filename_prefix)$(padded_idx).jld2")
 
-    if !(model.backend isa CPU)
-        model = model_to_CPU(model)
-    end
-
-    jldsave(filename=output_file, "model" => model)
+    cpu_model = model_to_CPU(model)
+    jldsave(output_file; model = cpu_model)
+    return output_file
 end
 
 
 # ---------------------------------------------------------------------------- #
 #                                 VTK Exporter                                 #
 # ---------------------------------------------------------------------------- #
+
 @kwdef struct VTKExporter <: AbstractExporter
     output_dir::String
     filename_prefix::String = "sim_"
 end
 
-function write_output(exporter::VTKExporter, model::MPMModel, step::Int, time::Real)
+function write_output(exporter::VTKExporter, model::MPMModel, step::Int, time::Real = model.t)
     mkpath(exporter.output_dir)
 
-    # Move model to CPU
     cpu_model = model_to_CPU(model)
     T = eltype(cpu_model.grid.origin)
-    
-    total_particles = sum(p_set -> length(p_set.particles), cpu_model.particle_sets)
-    if total_particles == 0; return nothing; end
 
-    # Arrays für den kombinierten Export allozieren (WriteVTK erwartet 3 x N Matrix für Punkte)
-    all_pos = Matrix{T}(undef, 3, total_particles)
-    all_vel = Matrix{T}(undef, 3, total_particles)
+    total_particles = sum(p_set -> length(p_set.particles.mass), cpu_model.particle_sets)
+    if total_particles == 0
+        return nothing
+    end
+
+    # Preallocate contiguous flat arrays for WriteVTK (3 x N for point coords)
+    all_pos  = Matrix{T}(undef, 3, total_particles)
+    all_vel  = Matrix{T}(undef, 3, total_particles)
     all_mass = Vector{T}(undef, total_particles)
-    all_vol = Vector{T}(undef, total_particles)
-    all_id = Vector{Int}(undef, total_particles)
-    
+    all_vol  = Vector{T}(undef, total_particles)
+    all_id   = Vector{Int}(undef, total_particles)
+
     offset = 1
     for (set_idx, p_set) in enumerate(cpu_model.particle_sets)
-        N = length(p_set.particles)
-        if N == 0
-            continue
-        end
-        
+        N = length(p_set.particles.mass)
+        N == 0 && continue
+
         range = offset:(offset + N - 1)
-        
-        # Positionen (3 x N)
+
         all_pos[1, range] .= p_set.particles.pos.x
         all_pos[2, range] .= p_set.particles.pos.y
         all_pos[3, range] .= p_set.particles.pos.z
-        
-        # On-the-fly Geschwindigkeit interpolieren
-        v_p_reconstructed = extract_velocities(cpu_model.grid, p_set, cpu_model.shapefunction)
+
+        v_p = extract_velocities(cpu_model.grid, p_set, cpu_model.shapefunction)
         for i in 1:N
-            all_vel[1, offset + i - 1] = v_p_reconstructed[i][1]
-            all_vel[2, offset + i - 1] = v_p_reconstructed[i][2]
-            all_vel[3, offset + i - 1] = v_p_reconstructed[i][3]
+            all_vel[1, offset + i - 1] = v_p[i][1]
+            all_vel[2, offset + i - 1] = v_p[i][2]
+            all_vel[3, offset + i - 1] = v_p[i][3]
         end
-        
-        # Attribute
+
         all_mass[range] .= p_set.particles.mass
-        all_vol[range] .= p_set.particles.initial_volume
-        all_id[range] .= set_idx
-        
+        all_vol[range]  .= p_set.particles.initial_volume
+        all_id[range]   .= set_idx
+
         offset += N
     end
 
-    # 2. VTK Topologie für Partikel definieren
-    # In VTK werden lose Punktwolken als "Vertices" repräsentiert.
-    # Jedes Partikel bildet eine eigene Zelle vom Typ VTKCellTypes.VTK_VERTEX.
-    cells = [MeshCell(VTKCellTypes.VTK_VERTEX, [i]) for i in 1:total_particles]
+    # 1-tuple avoids vector allocations inside MeshCell
+    cells = [MeshCell(VTKCellTypes.VTK_VERTEX, (i,)) for i in 1:total_particles]
 
-    # Dateinamen generieren (z.B. "sim_data_00123.vtu")
-    padded_idx = lpad(step, 5, "0")
-    full_path = "$(filename_prefix)_$(padded_idx)"
+    padded_idx = Printf.@sprintf("%06d", step)
+    full_path = joinpath(exporter.output_dir, "$(exporter.filename_prefix)$(padded_idx)")
 
-    # 3. Datei im binären XML-Format mit standardmäßiger Zlib-Kompression öffnen
     vtk_grid(full_path, all_pos, cells, append=true, ascii=false) do vtk
-        
-        # Punktdaten (Point Data) anhängen – ParaView interpoliert diese sauber
         vtk["Velocity", VTKPointData()] = all_vel
         vtk["Mass", VTKPointData()]     = all_mass
         vtk["Volume", VTKPointData()]   = all_vol
         vtk["ID", VTKPointData()]       = all_id
-        # Metadaten als globale Felddaten anhängen (z.B. die Simulationszeit)
-        vtk["TimeValue", VTKFieldData()] = cpu_model.t
+
+        vtk["TimeValue", VTKFieldData()] = T(time)
         vtk["Cycle", VTKFieldData()]     = step
     end
 
@@ -106,77 +213,68 @@ end
 # ---------------------------------------------------------------------------- #
 #                                 HDF5 Exporter                                #
 # ---------------------------------------------------------------------------- #
+
 @kwdef struct HDF5Exporter <: AbstractExporter
     output_dir::String
     filename_prefix::String = "sim_"
     write_xdmf::Bool = true
-    compression_level::Int = 3 # 0 (keine) bis 9 (maximal) für gzip
+    compression_level::Int = 3
 end
 
-function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::Real)
+function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::Real = model.t)
     mkpath(exporter.output_dir)
 
-    # 1. Modell auf die CPU holen (analog zum VTK-Exporter)
     cpu_model = model_to_CPU(model)
     T = eltype(cpu_model.grid.origin)
-    
-    total_particles = sum(p_set -> length(p_set.particles), cpu_model.particle_sets)
+
+    total_particles = sum(p_set -> length(p_set.particles.mass), cpu_model.particle_sets)
     if total_particles == 0
         return nothing
     end
 
-    # Arrays für den kombinierten Export allozieren
     all_pos  = Matrix{T}(undef, 3, total_particles)
     all_vel  = Matrix{T}(undef, 3, total_particles)
     all_mass = Vector{T}(undef, total_particles)
     all_vol  = Vector{T}(undef, total_particles)
     all_id   = Vector{Int}(undef, total_particles)
-    
+
     offset = 1
     for (set_idx, p_set) in enumerate(cpu_model.particle_sets)
-        N = length(p_set.particles)
-        if N == 0
-            continue
-        end
-        
+        N = length(p_set.particles.mass)
+        N == 0 && continue
+
         range = offset:(offset + N - 1)
-        
-        # Positionen (3 x N) extrahieren
+
         all_pos[1, range] .= p_set.particles.pos.x
         all_pos[2, range] .= p_set.particles.pos.y
         all_pos[3, range] .= p_set.particles.pos.z
-        
-        # On-the-fly Geschwindigkeit aus dem Gitter interpolieren (spart VRAM im Solver!)
-        v_p_reconstructed = _reconstruct_velocities_cpu(p_set, cpu_model.grid, cpu_model.shapefunction)
+
+        v_p = extract_velocities(cpu_model.grid, p_set, cpu_model.shapefunction)
         for i in 1:N
-            all_vel[1, offset + i - 1] = v_p_reconstructed[i][1]
-            all_vel[2, offset + i - 1] = v_p_reconstructed[i][2]
-            all_vel[3, offset + i - 1] = v_p_reconstructed[i][3]
+            all_vel[1, offset + i - 1] = v_p[i][1]
+            all_vel[2, offset + i - 1] = v_p[i][2]
+            all_vel[3, offset + i - 1] = v_p[i][3]
         end
-        
-        # Weitere Attribute zuweisen
+
         all_mass[range] .= p_set.particles.mass
         all_vol[range]  .= p_set.particles.initial_volume
         all_id[range]   .= set_idx
-        
+
         offset += N
     end
 
-    # Dateinamen mit sauberem Padding generieren (z.B. "sim_000123.h5")
     padded_idx = Printf.@sprintf("%06d", step)
     h5_filename = "$(exporter.filename_prefix)$(padded_idx).h5"
     h5_path = joinpath(exporter.output_dir, h5_filename)
 
-    # 2. HDF5-Datei im Binärmodus schreiben
     h5open(h5_path, "w") do file
+        chunk_size = min(total_particles, 1024)
         if exporter.compression_level > 0
-            # Mit nativer gzip-Kompression schreiben, um massiv Speicherplatz zu sparen
-            # 'blosc' ist oft schneller, benötigt aber das Paket Blosc.jl. gzip ist built-in.
-            file["position",  chunk=(3, min(total_particles, 1024)), compress=exporter.compression_level] = all_pos
-            file["velocity",  chunk=(3, min(total_particles, 1024)), compress=exporter.compression_level] = all_vel
-            file["mass",      chunk=(min(total_particles, 1024),),   compress=exporter.compression_level] = all_mass
-            file["volume",    chunk=(min(total_particles, 1024),),   compress=exporter.compression_level] = all_vol
-            file["id",        chunk=(min(total_particles, 1024),),   compress=exporter.compression_level] = all_id
+            file["position",  chunk=(3, chunk_size), compress=exporter.compression_level] = all_pos
+            file["velocity",  chunk=(3, chunk_size), compress=exporter.compression_level] = all_vel
+            file["mass",      chunk=(chunk_size,),   compress=exporter.compression_level] = all_mass
+            file["volume",    chunk=(chunk_size,),   compress=exporter.compression_level] = all_vol
+            file["id",        chunk=(chunk_size,),   compress=exporter.compression_level] = all_id
         else
             file["position"] = all_pos
             file["velocity"] = all_vel
@@ -184,13 +282,11 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
             file["volume"]   = all_vol
             file["id"]       = all_id
         end
-        
-        # Globale Simulations-Metadaten als HDF5-Attribute anhängen
-        attributes(file)["time"]  = cpu_model.t
+
+        attributes(file)["time"]  = Float64(time)
         attributes(file)["cycle"] = step
     end
 
-    # 3. XDMF-Wrapper-Datei schreiben (erlaubt Plug-and-Play in ParaView)
     if exporter.write_xdmf
         _write_xdmf_metadata(exporter.output_dir, exporter.filename_prefix, padded_idx, total_particles, T)
     end
@@ -198,19 +294,15 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
     return h5_path
 end
 
-# Interner Helper, der das XML-XDMF-File generiert
+# Generates the companion XDMF XML wrapper for ParaView ingestion
 function _write_xdmf_metadata(output_dir::String, prefix::String, padded_idx::String, total_particles::Int, T::Type)
     h5_filename  = "$(prefix)$(padded_idx).h5"
     xmf_filename = "$(prefix)$(padded_idx).xmf"
     xmf_path     = joinpath(output_dir, xmf_filename)
-    
+
     precision = (T == Float64) ? 8 : 4
-    
-    # WICHTIGER ARCHITEKTUR-HINWEIS FÜR JULIA (Column-Major):
-    # Da ein Julia-Array der Form (3, N) im Speicher liegt, "sieht" die C-basierte HDF5/XDMF-Bibliothek
-    # dies automatisch gespiegelt als eine Matrix der Dimension (N, 3). 
-    # Daher definieren wir im XDMF Dimensions="$total_particles 3".
-    
+
+    # Julia (3, N) column-major layout maps to (N, 3) in row-major C/HDF5 readers
     xdmf_content = """
     <?xml version="1.0" ?>
     <!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
@@ -247,7 +339,7 @@ function _write_xdmf_metadata(output_dir::String, prefix::String, padded_idx::St
       </Domain>
     </Xdmf>
     """
-    
+
     open(xmf_path, "w") do io
         write(io, strip(xdmf_content))
     end

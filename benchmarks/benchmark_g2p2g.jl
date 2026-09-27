@@ -4,7 +4,6 @@ using BenchmarkTools
 using Profile
 using LinearAlgebra
 using Atomix: @atomic
-using AMDGPU
 using KernelAbstractions
 
 # backend = ROCBackend()
