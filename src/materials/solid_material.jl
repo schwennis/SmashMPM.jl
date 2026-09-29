@@ -69,16 +69,16 @@ end
 function material_model(
     material::SolidMaterial{T, EoS, SM}, 
     mat_state::SolidMaterialState{T, EoSState, SMState}, 
-    F, C, V0, m, dt
+    F::SMatrix{3,3,T,9}, C::SMatrix{3,3,T,9}, V0::T, m::T, dt::T
 ) where {T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel, EoSState<:AbstractEoSState, SMState<:AbstractStrengthModelState}
     # Kinematic part
     J = det(F)
     ρ = m / (J * V0)
 
-    D = 0.5 * (C + C')
-    W = 0.5 * (C - C')
+    D = (0.5) * (C + C')
+    W = (0.5) * (C - C')
     trD = tr(D)
-    D_dev = D - (trD / 3) * one(SMatrix{3,3,T,9})
+    D_dev = D - (trD / T(3)) * one(SMatrix{3,3,T,9})
 
     # Strength model update
     s_new, strength_state_new, c_p = strength_model(material.strength_model, mat_state.strength_state, ρ, D_dev, W , dt)

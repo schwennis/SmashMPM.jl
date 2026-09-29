@@ -49,9 +49,9 @@ end
 
     I = one(SMatrix{3, 3, T, 9})
     
-    ε = (F + F') / 2 - I
+    ε = (F + F') / T(2) - I
     
-    σ = 2 * μ * ε + λ * tr(ε) * I
+    σ = T(2) * μ * ε + λ * tr(ε) * I
 
     return σ, mat_state
 end

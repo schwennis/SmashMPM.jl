@@ -9,7 +9,7 @@ using Base.Threads
 #                               Backend Selection                              #
 # ---------------------------------------------------------------------------- #
 backend_to_use = :cpu
-# const BACKEND = :cuda
+# const backend_to_use = :cuda
 
 T = backend_to_use === :cpu ? Float64 : Float32 # Choose correct precision based on backend
 
@@ -41,7 +41,7 @@ const SAVE_TIME_INTERVAL = T(0.10)   # Save simulation state every 1.0 seconds
 # ---------------------------------------------------------------------------- #
 const CUBE_SIZE = 1.0
 const CUBE_MATERIAL = Basalt(T, eos=:tillotson, strength=:elastic)
-const CUBE_ROT_SPEED = T(2π / 1.0)  # radians per second
+const CUBE_ROT_SPEED = T(2π / 10.0)  # radians per second
 
 
 function build_cube(T)
@@ -60,7 +60,7 @@ function main(backend=BACKEND, T=T)
     sim_setup = SimulationSetup(
         dx=DX,
         t_max=T_MAX,
-        padding=10, # 10 to make sure the cube is fully contained in the grid
+        padding=13, # 15 to make sure the cube is fully contained in the grid
         ppc_1d=PPC_1D,
         CFL_number=CFL_NUMBER,
         dt_max=DT_MAX,

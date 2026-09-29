@@ -88,7 +88,7 @@ end
 """
 Compute the Tillotson omega function and its derivatives with respect to density and energy.
 """
-function _tillotson_omega(eos::TillotsonEOS{T}, ρ, e) where {T}
+function _tillotson_omega(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     b = eos.b
     E0 = eos.E0
     ρ0 = eos.ρ0
@@ -98,7 +98,7 @@ function _tillotson_omega(eos::TillotsonEOS{T}, ρ, e) where {T}
     denom = one(T) + e / (E0 * η^2)
     ω = b / denom
 
-    ddenom_dρ = -2 * e / (E0 * η^3 * ρ0) 
+    ddenom_dρ = -T(2) * e / (E0 * η^3 * ρ0) 
     dω_dρ = -b * ddenom_dρ / denom^2
 
     ddenom_de = one(T) / (E0 * η^2)
@@ -110,7 +110,7 @@ end
 """
 Compute the pressure and its derivatives for the Tillotson equation of state in the condensed regime.
 """
-function _tillotson_condensed(eos::TillotsonEOS{T}, ρ, e) where {T}
+function _tillotson_condensed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     ρ0 = eos.ρ0
     A = eos.A
     B = eos.B
@@ -123,7 +123,7 @@ function _tillotson_condensed(eos::TillotsonEOS{T}, ρ, e) where {T}
 
     p = (a + ω) * ρ * e + A * μ + B * μ^2
 
-    dp_dρ = (a + ω) * e + ρ * e * dω_dρ + (A + 2 * B * μ) / ρ0
+    dp_dρ = (a + ω) * e + ρ * e * dω_dρ + (A + T(2) * B * μ) / ρ0
     dp_de = (a + ω) * ρ + ρ * e * dω_de
 
     return p, dp_dρ, dp_de
@@ -133,7 +133,7 @@ end
 """
 Compute the pressure and its derivatives for the Tillotson equation of state in the expanded regime.
 """
-function _tillotson_expanded(eos::TillotsonEOS{T}, ρ, e) where {T}
+function _tillotson_expanded(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     ρ0 = eos.ρ0
     A = eos.A
     α = eos.α
@@ -159,7 +159,7 @@ function _tillotson_expanded(eos::TillotsonEOS{T}, ρ, e) where {T}
     dP_star_dρ = e * (ω + ρ * dω_dρ) + A * exp_term_1 * (dμ_dρ - β * μ * dν_dρ)
     dP_star_de = ρ * (ω + e * dω_de)
 
-    dp_dρ = a * e + (dP_star_dρ - 2 * α * ν * dν_dρ * P_star) * exp_term_2
+    dp_dρ = a * e + (dP_star_dρ - T(2) * α * ν * dν_dρ * P_star) * exp_term_2
     dp_de = a * ρ + dP_star_de * exp_term_2
 
     return p, dp_dρ, dp_de
