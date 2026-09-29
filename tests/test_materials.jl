@@ -11,3 +11,6 @@ end
     include("materials/test_neohookean.jl")
 end
 
+@testset "SolidMaterial" begin
+    include("materials/test_solidmaterial.jl")
+end
