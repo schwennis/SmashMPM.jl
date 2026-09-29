@@ -32,8 +32,8 @@ function model_to_CPU(model::MPMModel)
     cpu_particle_sets = map(model.particle_sets) do p_set
         SoAParticleSet(
             adapt(Array, p_set.particles), 
-            p_set.material,
-            CPU()
+            adapt(Array, p_set.particles_buffer),
+            p_set.material
         )
     end
 
