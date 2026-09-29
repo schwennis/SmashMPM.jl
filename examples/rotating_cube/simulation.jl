@@ -28,7 +28,7 @@ end
 #                             Simulation Parameters                            #
 # ---------------------------------------------------------------------------- #
 const DX = T(0.1)
-const T_MAX = T(2700)
+const T_MAX = T(60)
 const PADDING = 3
 const PPC_1D = 2
 const CFL_NUMBER = T(0.4)
@@ -41,11 +41,12 @@ const SAVE_TIME_INTERVAL = T(0.10)   # Save simulation state every 1.0 seconds
 # ---------------------------------------------------------------------------- #
 const CUBE_SIZE = 1.0
 const CUBE_MATERIAL = Basalt(T, eos=:tillotson, strength=:elastic)
+const CUBE_ROT_SPEED = T(2π / 1.0)  # radians per second
 
 
 function build_cube(T)
     shape_cube = RectangularPrism{T}(width=CUBE_SIZE, height=CUBE_SIZE, depth=CUBE_SIZE)
-    body_cube = Body(shape_cube, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), CUBE_MATERIAL)
+    body_cube = Body(shape_cube, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, CUBE_ROT_SPEED), CUBE_MATERIAL)
     return body_cube
 end
 
@@ -94,7 +95,7 @@ function main(backend=BACKEND, T=T)
         time_since_last_save += dt
         if steps % 1000 == 0
             real_time_elapsed = time() - real_time_start
-            eta = (real_time_elapsed / model.t * model.t_max)/3600
+            eta = (real_time_elapsed / model.t * (model.t_max - model.t))/3600
 
             print("Step: $steps, Time: $(round(model.t, digits=4)), dt: $(round(dt, digits=6)), eta: $(round(eta, digits=2))h \r")
         end
