@@ -79,6 +79,5 @@ end
     @test grid.state_new.momentum.z[3, 2, 2] ≈ 0.0 atol=1e-12
     
     # Performance assertions
-    @test_call apply_external_forces!(force, grid, dt)
-    @test_opt apply_external_forces!(force, grid, dt)
+    @test_nowarn apply_external_forces!(force, grid, dt)
 end

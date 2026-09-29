@@ -98,6 +98,3 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     )
 end
 
-function max_wavespeed(grid::DenseGrid)
-    return maximum(grid.state_old.wave_speed)
-end
