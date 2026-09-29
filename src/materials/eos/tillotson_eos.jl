@@ -38,7 +38,7 @@ end
 # ---------------------------------------------------------------------------- #
 #                           update_eos implementation                          #
 # ---------------------------------------------------------------------------- #
-function update_eos(eos::TillotsonEOS{T}, eos_state::TillotsonState{T}, ρ, stress_work, dt) where {T}
+function update_eos(eos::TillotsonEOS{T}, eos_state::TillotsonState{T}, ρ::T, stress_work::T, dt::T) where {T}
     e_new = eos_state.e + stress_work * dt
     p, c = tillotson_eos_and_soundspeed(eos, ρ, e_new)
     return TillotsonState{T}(p, e_new), c

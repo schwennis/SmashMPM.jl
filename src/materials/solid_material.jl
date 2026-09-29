@@ -75,8 +75,8 @@ function material_model(
     J = det(F)
     ρ = m / (J * V0)
 
-    D = (0.5) * (C + C')
-    W = (0.5) * (C - C')
+    D = T(0.5) * (C + C')
+    W = T(0.5) * (C - C')
     trD = tr(D)
     D_dev = D - (trD / T(3)) * one(SMatrix{3,3,T,9})
 
