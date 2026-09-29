@@ -25,24 +25,24 @@ function Iron(
             T(0.15)      # b
         )
     else
-        error("Unbekannte EoS für Eisen: :$eos")
+        error("Unknown EoS for iron: :$eos")
     end
 
     # strength model 
     strength_inst = if strength === :elastic
         ElasticStrengthModel{T}(T(7.75e10)) # μ = 77.5 GPa
     else
-        error("Unbekanntes Strength-Modell für Eisen: :$strength")
+        error("Unknown strength model for iron: :$strength")
     end
 
-    # damage model
-    damage_inst = if damage === :none
-        NoDamageModel()
-    # elseif damage === :johnson_cook_damage
-    #     JohnsonCookDamage{T}(...)
-    else
-        error("Unbekanntes Schadensmodell für Eisen: :$damage")
-    end
+    # # damage model
+    # damage_inst = if damage === :none
+    #     NoDamageModel()
+    # # elseif damage === :johnson_cook_damage
+    # #     JohnsonCookDamage{T}(...)
+    # else
+    #     error("Unknown damage model for iron: :$damage")
+    # end
 
-    return SolidMaterial(eos_inst, strength_inst, damage_inst)
+    return SolidMaterial(eos_inst, strength_inst, T(7800.0))
 end

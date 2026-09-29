@@ -28,4 +28,11 @@ LocalPreferences.toml
 JuliaLocalPreferences.toml
 
 
+# VSCode settings folder
 .vscode/
+
+
+# hdf5, jld2, and other binary output files
+*.h5
+*.jld2
+*.xmf

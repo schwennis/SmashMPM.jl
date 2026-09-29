@@ -12,7 +12,7 @@ end
 
 
 
-function strength_model(strength_model::ElasticStrengthModel, strength_state::ElasticStrengthModelState, D_dev, W , dt)
+function strength_model(strength_model::ElasticStrengthModel, strength_state::ElasticStrengthModelState, ρ, D_dev, W , dt)
     μ = strength_model.μ
     s_old = strength_state.s
 
@@ -22,5 +22,9 @@ function strength_model(strength_model::ElasticStrengthModel, strength_state::El
     # Update the deviatoric stress tensor
     s_new = s_old + dt * (2 * μ * D_dev + s_rot)
 
-    return s_new, ElasticStrengthModelState{typeof(μ)}(s_new)
+    # p-wave speed
+    c_p = sqrt(4 * μ / (3 * ρ))
+
+    return s_new, ElasticStrengthModelState{typeof(μ)}(s_new), c_p
 end
+

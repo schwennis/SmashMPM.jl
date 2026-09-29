@@ -40,7 +40,7 @@ z_particles = []
 ts = []
 
 while model.t < model.t_max
-    dt = SmashMPM.courant_timestep(model, 0.5)
+    dt = SmashMPM.courant_timestep(model)
     SmashMPM.g2p2g!(model, dt)
     SmashMPM.grid_reset!(model.grid)
     SmashMPM.apply_external_forces!(ext_force, model.grid, dt)

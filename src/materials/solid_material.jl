@@ -24,7 +24,7 @@ abstract type AbstractStrengthModelState end
 init_strength_state(sm::AbstractStrengthModel) = error("init_strength_state not implemented for $(typeof(sm))")
 
 
-function strength_model(strength_model::AbstractStrengthModel, strength_state::AbstractStrengthModelState, D_dev, W , dt)
+function strength_model(strength_model::AbstractStrengthModel, strength_state::AbstractStrengthModelState, ρ, D_dev, W , dt)
     error("strength_model not implemented for $(typeof(strength_model))")
 end
 
@@ -37,6 +37,7 @@ include("strength_models/elastic_strength.jl")  # Elastic strength model impleme
 struct SolidMaterial{T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel} <: AbstractMaterial
     eos::EoS
     strength_model::SM
+    ρ::T    # Reference density for Body creation
 end
 
 struct SolidMaterialState{T, EoSState<:AbstractEoSState, SMState<:AbstractStrengthModelState} <: AbstractMaterialState
@@ -55,7 +56,7 @@ function get_initial_material_state(material::SolidMaterial{T}) where {T}
 end
 
 
-function get_soundspeed(material::SolidMaterial{T, EoS, SM}, mat_state::SolidMaterialState{T, EoS, SM}) where {T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel}
+function get_soundspeed(material::SolidMaterial, mat_state::SolidMaterialState)
     return mat_state.c
 end
 
@@ -65,7 +66,11 @@ end
 # ---------------------------------------------------------------------------- #
 #                         Material Model Implementation                        #
 # ---------------------------------------------------------------------------- #
-function material_model(material::SolidMaterial{T, EoS, SM}, mat_state::SolidMaterialState{T, EoS, SM}, F, C, V0, m, dt) where {T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel}
+function material_model(
+    material::SolidMaterial{T, EoS, SM}, 
+    mat_state::SolidMaterialState{T, EoSState, SMState}, 
+    F, C, V0, m, dt
+) where {T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel, EoSState<:AbstractEoSState, SMState<:AbstractStrengthModelState}
     # Kinematic part
     J = det(F)
     ρ = m / (J * V0)
@@ -76,20 +81,23 @@ function material_model(material::SolidMaterial{T, EoS, SM}, mat_state::SolidMat
     D_dev = D - (trD / 3) * one(SMatrix{3,3,T,9})
 
     # Strength model update
-    s_new, strength_state_new = strength_model(material.strength_model, mat_state.strength_state, D_dev, W , dt)
+    s_new, strength_state_new, c_p = strength_model(material.strength_model, mat_state.strength_state, ρ, D_dev, W , dt)
 
     # Stress work
     p_old = mat_state.eos_state.p
     stress_work = (-p_old * trD + dot(s_new, D_dev)) / ρ
 
     # EOS update
-    eos_state_new, c = update_eos(material.eos, mat_state.eos_state, ρ, stress_work, dt)
+    eos_state_new, c_eos = update_eos(material.eos, mat_state.eos_state, ρ, stress_work, dt)
+
+    # get wavespeed
+    c = sqrt(c_p^2 + c_eos^2)
 
     # Assemble the Cauchy stress tensor
     σ = s_new - eos_state_new.p * one(SMatrix{3,3,T,9})
 
     # Construct new material state
-    mat_state_new = SolidMaterialState{T, EoS, SM}(c, eos_state_new, strength_state_new)
+    mat_state_new = SolidMaterialState{T, EoSState, SMState}(c, eos_state_new, strength_state_new)
 
     return σ, mat_state_new
 end

@@ -25,22 +25,22 @@ function Basalt(
             T(1.5)       # b
         )
     else
-        error("Unbekannte EoS für Basalt: :$eos")
+        error("Unknown EoS for basalt: :$eos")
     end
 
     # strength model 
     strength_inst = if strength === :elastic
         ElasticStrengthModel{T}(T(2.3087e10))   # μ = 23.087 GPa
     else
-        error("Unbekanntes Strength-Modell für Basalt: :$strength")
+        error("Unknown strength model for basalt: :$strength")
     end
 
     # damage model (not implemented yet)
     # damage_inst = if damage === :none
     #     NoDamageModel()
     # else
-    #     error("Unbekanntes Schadensmodell für Basalt: :$damage")
+    #     error("Unknown damage model for basalt: :$damage")
     # end
 
-    return SolidMaterial(eos_inst, strength_inst)
+    return SolidMaterial(eos_inst, strength_inst, T(2700.0))  # ρ = 2700 kg/m^3
 end

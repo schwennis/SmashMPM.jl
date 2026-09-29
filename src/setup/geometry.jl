@@ -35,7 +35,7 @@ abstract type AbstractShape end
 
 @kwdef struct Sphere{T} <: AbstractShape
     radius::T
-    center::SVector{3, T} = zero(SVector{3, typeof(T)})
+    center::SVector{3, T} = zero(SVector{3, T})
 end
 
 """
@@ -109,6 +109,87 @@ end
 
 
 
+
+# ---------------------------------------------------------------------------- #
+#                               RectangularPrism                               #
+# ---------------------------------------------------------------------------- #
+@kwdef struct RectangularPrism{T} <: AbstractShape
+    width::T
+    height::T
+    depth::T
+    center::SVector{3, T} = zero(SVector{3, T})
+    euler_angles::SVector{3, T} = zero(SVector{3, T}) # (roll, pitch, yaw) in radians
+end
+
+function generate_particles(
+    shape::RectangularPrism{T}, 
+    spacing::T, 
+    ρ::T, 
+    velocity::SVector{3, T}, 
+    ω_vector::SVector{3, T}=zero(SVector{3, T})
+) where T
+
+    w = shape.width
+    h = shape.height
+    d = shape.depth
+    center = shape.center
+    euler_angles = shape.euler_angles
+
+    # Create Rotation Matrix
+    rot_matrix = generate_rotation_matrix(euler_angles[1], euler_angles[2], euler_angles[3])
+
+    # Number of particles per axis
+    num_particles_width = ceil(Int, w / spacing)
+    num_particles_height = ceil(Int, h / spacing)
+    num_particles_depth = ceil(Int, d / spacing)
+
+    # estimate total number of particles (for size hinting to prevent multiple resizes of the array)
+    estimated_particles = round(Int, (w * h * d) / (spacing^3))
+    positions = SVector{3, T}[]
+    velocities = SVector{3, T}[]
+    sizehint!(positions, estimated_particles)
+    sizehint!(velocities, estimated_particles)
+    
+    grid_offset_width = 0.5 * num_particles_width * spacing
+    grid_offset_height = 0.5 * num_particles_height * spacing
+    grid_offset_depth = 0.5 * num_particles_depth * spacing
+
+    for i in 0:num_particles_width-1
+        for j in 0:num_particles_height-1
+            for k in 0:num_particles_depth-1
+                local_pos = SVector(
+                    (i + 0.5) * spacing - grid_offset_width,
+                    (j + 0.5) * spacing - grid_offset_height,
+                    (k + 0.5) * spacing - grid_offset_depth
+                )
+
+                if abs(local_pos[1]) <= w / 2 &&
+                   abs(local_pos[2]) <= h / 2 &&
+                   abs(local_pos[3]) <= d / 2
+
+                    rotated_pos = rot_matrix * local_pos
+                    push!(positions, rotated_pos + center)
+
+                    v_rot = iszero(ω_vector) ?
+                        zero(SVector{3, T}) :
+                        cross(ω_vector, rotated_pos)
+
+                    push!(velocities, velocity + v_rot)
+                end
+            end
+        end
+    end
+
+    N_particles = length(positions)
+    V0_scalar = spacing^3
+    m_scalar = ρ * V0_scalar
+
+    volumes = fill(V0_scalar, N_particles)
+    masses = fill(m_scalar, N_particles)
+
+    return positions, velocities, masses, volumes
+end
+
 # ---------------------------------------------------------------------------- #
 #                                   Cylinder                                   #
 # ---------------------------------------------------------------------------- #
@@ -116,8 +197,8 @@ end
 @kwdef struct Cylinder{T} <: AbstractShape
     radius::T
     height::T
-    center::SVector{3, T} = zero(SVector{3, typeof(T)})
-    euler_angles::SVector{3, T} = zero(SVector{3, typeof(T)}) # (roll, pitch, yaw) in radians
+    center::SVector{3, T} = zero(SVector{3, T})
+    euler_angles::SVector{3, T} = zero(SVector{3, T}) # (roll, pitch, yaw) in radians
 end
 
 """

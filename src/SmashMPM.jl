@@ -9,6 +9,7 @@ using Adapt
 using Atomix: @atomic
 
 using JLD2
+using HDF5
 using Printf
 using WriteVTK
 
@@ -43,7 +44,7 @@ export AbstractExternalForce, NoExternalForce, ConstantGravity, RadialInvSquareF
 export apply_external_forces!
 
 include("setup/geometry.jl")
-export AbstractShape, Sphere, Cylinder
+export AbstractShape, Sphere, Cylinder, RectangularPrism
 export generate_particles
 
 include("mpm_model.jl")
@@ -55,6 +56,7 @@ include("setup/build_sim.jl")
 export AbstractBody, Body, SimulationSetup, build_mpm_model
 
 include("export/exporter.jl")
+export AbstractExporter, HDF5Exporter, VTKExporter, write_output
 include("export/extract_velocities.jl")
 
 include("solver.jl")
