@@ -57,6 +57,7 @@ function model_to_CPU(model::MPMModel)
         CPU(),
         model.t,
         model.t_max,
+        model.dt_max,
         model.CFL_number
     )
     return cpu_model
