@@ -46,11 +46,8 @@ function DenseGrid(dx::T, N::SVector{3,Int}, origin::SVector{3,T}, padding::Int=
 end
 
 
-function max_wavespeed(grid::DenseGrid{T, S}) where {T, S}
-    res = mapreduce(max, grid.state_old) do node
-        node.wave_speed
-    end
-    return res
+function max_wavespeed(grid::DenseGrid)
+    return maximum(grid.state_old.wave_speed)
 end
 
 

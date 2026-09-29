@@ -13,7 +13,7 @@ end
 # ---------------------------------------------------------------------------- #
 #                          No Slip Boundary Condition                          #
 # ---------------------------------------------------------------------------- #
-# Kein Masken-Array mehr nötig -> 0 Byte Speicherverbrauch!
+# No Mask - Sets padding momentum to zero
 struct NoSlipBoundary <: AbstractBoundaryCondition end
 
 @kernel function noslip_boundary_kernel!(momentum_x, momentum_y, momentum_z, padding, nx, ny, nz)

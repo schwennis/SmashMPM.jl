@@ -60,7 +60,7 @@ end
         )
         r_vec = pos .- center
         r = norm(r_vec) + eps(T)
-        force_vec = T(F_0) * (r_vec ./ (r * r))
+        force_vec = T(F_0) * (r_vec ./ (r^3))
 
         momentum_x[i, j, k] += m * force_vec[1] * dt
         momentum_y[i, j, k] += m * force_vec[2] * dt

@@ -31,46 +31,6 @@ function _to_cpu_grid_state(state)
     ))
 end
 
-function model_to_CPU(model::MPMModel)
-    if model.backend isa CPU
-        return model
-    end
-
-    cpu_particle_sets = map(model.particle_sets) do p_set
-        p_cpu  = _to_cpu_particles(p_set.particles)
-        pb_cpu = _to_cpu_particles(p_set.particles_buffer)
-        SoAParticleSet{typeof(p_set.material), typeof(p_cpu)}(
-            p_cpu,
-            pb_cpu,
-            p_set.material,
-        )
-    end
-
-    old_state_cpu = _to_cpu_grid_state(model.grid.state_old)
-    new_state_cpu = _to_cpu_grid_state(model.grid.state_new)
-
-    cpu_grid = DenseGrid{eltype(model.grid.origin), typeof(old_state_cpu)}(
-        old_state_cpu,
-        new_state_cpu,
-        model.grid.padding,
-        model.grid.origin,
-        model.grid.inv_dx,
-    )
-
-    return MPMModel(
-        cpu_particle_sets,
-        cpu_grid,
-        model.boundary_condition,
-        model.external_force,
-        model.shapefunction,
-        CPU(),
-        model.t,
-        model.t_max,
-        model.dt_max,
-        model.CFL_number,
-    )
-end
-
 # Interpolate nodal velocities to particles on the CPU
 function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, spline::AbstractShapeFunction)
     grid_state = grid.state_old
