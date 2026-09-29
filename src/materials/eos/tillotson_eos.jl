@@ -16,9 +16,9 @@ struct TillotsonEOS{T} <: AbstractEquationOfState
     b::T    # Tillotson parameter b
 end
 
-struct TillotsonState{T, EoS<:AbstractEquationOfState} <: AbstractEoSState
-    ρ::T
-    e::T
+struct TillotsonState{T} <: AbstractEoSState
+    p::T    # Pressure
+    e::T    # Specific internal energy
 end
 
 function init_eos_state(eos::TillotsonEOS{T}) where {T}
@@ -38,20 +38,21 @@ end
 # ---------------------------------------------------------------------------- #
 #                           update_eos implementation                          #
 # ---------------------------------------------------------------------------- #
-function update_eos(eos::TillotsonEOS{T}, eos_state::TillotsonState{T, TillotsonEOS{T}}, ρ, stress_work, dt) where {T}
+function update_eos(eos::TillotsonEOS{T}, eos_state::TillotsonState{T}, ρ, stress_work, dt) where {T}
     e_new = eos_state.e + stress_work * dt
     p, c = tillotson_eos_and_soundspeed(eos, ρ, e_new)
     return TillotsonState{T}(p, e_new), c
 end
 
 
-function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, eos_state::TillotsonState{T, TillotsonEOS{T}}) where {T}
+
+function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     ρ0 = eos.ρ0
     Eiv = eos.Eiv
     Ecv = eos.Ecv
 
-    ρ_safe = max(T(eos_state.ρ), eps(T))
-    e_safe = max(T(eos_state.e), zero(T))
+    ρ_safe = max(T(ρ), eps(T))
+    e_safe = max(T(e), zero(T))
 
     if ρ_safe >= ρ0
         p, dp_dρ, dp_de = _tillotson_condensed(eos, ρ_safe, e_safe)

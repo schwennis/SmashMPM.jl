@@ -1,0 +1,110 @@
+using SmashMPM
+using StaticArrays
+using LinearAlgebra
+using KernelAbstractions: CPU, Backend
+using Base.Threads
+
+
+# ---------------------------------------------------------------------------- #
+#                               Backend Selection                              #
+# ---------------------------------------------------------------------------- #
+backend_to_use = :cpu
+# const BACKEND = :cuda
+
+T = backend_to_use === :cpu ? Float64 : Float32 # Choose correct precision based on backend
+
+if backend_to_use === :cuda
+    println("Using CUDA backend...")
+    using CUDA  # Import CUDA only if using CUDABackend
+    CUDA.allowscalar(false)
+    BACKEND = CUDABackend()
+else
+    println("Using CPU backend using $(Threads.nthreads()) threads...")
+    BACKEND = CPU()
+end
+
+
+# ---------------------------------------------------------------------------- #
+#                             Simulation Parameters                            #
+# ---------------------------------------------------------------------------- #
+const DX = T(0.1)
+const T_MAX = T(2700)
+const PADDING = 3
+const PPC_1D = 2
+const CFL_NUMBER = T(0.4)
+const DT_MAX = T(1e-3)
+
+const SAVE_TIME_INTERVAL = T(0.10)   # Save simulation state every 1.0 seconds
+
+# ---------------------------------------------------------------------------- #
+#                                Cube Parameters                               #
+# ---------------------------------------------------------------------------- #
+const CUBE_SIZE = 1.0
+const CUBE_MATERIAL = Basalt(T, eos=:tillotson, strength=:elastic)
+
+
+function build_cube(T)
+    shape_cube = RectangularPrism{T}(width=CUBE_SIZE, height=CUBE_SIZE, depth=CUBE_SIZE)
+    body_cube = Body(shape_cube, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), CUBE_MATERIAL)
+    return body_cube
+end
+
+function main(backend=BACKEND, T=T)
+    # Create a cube body
+    println("Creating cube body...")
+    body_cube = build_cube(T)
+
+    # Setup the simulation
+    println("Setting up simulation...")
+    sim_setup = SimulationSetup(
+        dx=DX,
+        t_max=T_MAX,
+        padding=10, # 10 to make sure the cube is fully contained in the grid
+        ppc_1d=PPC_1D,
+        CFL_number=CFL_NUMBER,
+        dt_max=DT_MAX,
+        backend=BACKEND
+    )
+
+    exporter = HDF5Exporter(
+        output_dir="output", 
+        filename_prefix="rotating_cube",
+        write_xdmf=true,
+    )
+
+    # Create a simulation with the cube body
+    println("Setting up Model...")
+    model = build_mpm_model((body_cube,), sim_setup)
+
+    N_particles = length(model.particle_sets[1].particles)
+    grid_dimensions = size(model.grid.state_old)
+    println("Simulation setup complete. Number of particles: $N_particles, Grid dimensions: $grid_dimensions")
+
+    model.grid.padding = PADDING
+
+
+    steps = 0
+    time_since_last_save = 0.0
+    real_time_start = time()
+    while model.t < model.t_max
+        dt = courant_timestep(model)
+        g2p2g!(model, dt)
+        steps += 1
+        model.t += dt
+        time_since_last_save += dt
+        if steps % 1000 == 0
+            real_time_elapsed = time() - real_time_start
+            eta = (real_time_elapsed / model.t * model.t_max)/3600
+
+            print("Step: $steps, Time: $(round(model.t, digits=4)), dt: $(round(dt, digits=6)), eta: $(round(eta, digits=2))h \r")
+        end
+        if time_since_last_save >= SAVE_TIME_INTERVAL
+            write_output(exporter, model, steps)
+            time_since_last_save = 0.0
+        
+        end
+    end
+    println("\nSimulation complete.")
+end
+
+main()
