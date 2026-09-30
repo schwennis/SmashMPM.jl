@@ -13,7 +13,7 @@ function Basalt(
     # equation of state
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            T(2700.0),   # ρ0  (kg/m^3)
+            T(286.0),   # ρ0  (kg/m^3)
             T(26.7e9),   # A   (Pa)
             T(26.7e9),   # B   (Pa)
             T(5.0),      # α
@@ -24,13 +24,20 @@ function Basalt(
             T(0.5),      # a
             T(1.5)       # b
         )
+    elseif eos === :murnaghan
+        MurnaghanEOS{T}(
+            T(2860.0),  # ρ0  (kg/m^3)
+            T(26.7e9),  # K0  (Pa)
+            T(5.5),     # n
+            T(0.9)      # η_limit (relative compression)
+        )
     else
         error("Unknown EoS for basalt: :$eos")
     end
 
     # strength model 
     strength_inst = if strength === :elastic
-        ElasticStrengthModel{T}(T(2.3087e10))   # μ = 23.087 GPa
+        ElasticStrengthModel{T}(T(2.27e10))   # μ = 22.7 GPa
     else
         error("Unknown strength model for basalt: :$strength")
     end
