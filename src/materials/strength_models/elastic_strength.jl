@@ -1,8 +1,8 @@
-struct ElasticStrengthModel{T} <: AbstractStrengthModel
+@kwdef struct ElasticStrengthModel{T} <: AbstractStrengthModel
     μ::T
 end
 
-struct ElasticStrengthModelState{T} <: AbstractStrengthModelState
+@kwdef struct ElasticStrengthModelState{T} <: AbstractStrengthModelState
     s::SMatrix{3, 3, T, 9}  # Deviatoric stress tensor 
 end
 

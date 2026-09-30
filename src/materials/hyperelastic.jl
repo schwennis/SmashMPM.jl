@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------- #
 #                                Linear Elastic                                #
 # ---------------------------------------------------------------------------- #
-struct LinearElastic{T}<:AbstractMaterial
+@kwdef struct LinearElastic{T}<:AbstractMaterial
     μ::T
     λ::T
     ρ::T

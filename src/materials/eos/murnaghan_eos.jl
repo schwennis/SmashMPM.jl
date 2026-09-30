@@ -2,14 +2,14 @@
 #                          Murnaghan Eqation of State                          #
 # ---------------------------------------------------------------------------- #
 
-struct MurnaghanEOS{T} <: AbstractEquationOfState
+@kwdef struct MurnaghanEOS{T} <: AbstractEquationOfState
     ρ0::T   # Reference density
     K0::T   # Bulk modulus at reference density
     n::T    # Murnaghan exponent n
     η_limit::T  # η limit for the EOS
 end
 
-struct MurnaghanState{T} <: AbstractEoSState
+@kwdef struct MurnaghanState{T} <: AbstractEoSState
     p::T    # Pressure
 end
 

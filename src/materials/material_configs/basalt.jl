@@ -10,10 +10,12 @@ function Basalt(
     # damage::Symbol = :none
 ) where {T<:AbstractFloat}
 
+    ρ_ref = T(2860.0)  # Reference density for basalt in kg/m^3
+
     # equation of state
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            T(286.0),   # ρ0  (kg/m^3)
+            ρ_ref,   # ρ0  (kg/m^3)
             T(26.7e9),   # A   (Pa)
             T(26.7e9),   # B   (Pa)
             T(5.0),      # α
@@ -26,7 +28,7 @@ function Basalt(
         )
     elseif eos === :murnaghan
         MurnaghanEOS{T}(
-            T(2860.0),  # ρ0  (kg/m^3)
+            ρ_ref,  # ρ0  (kg/m^3)
             T(26.7e9),  # K0  (Pa)
             T(5.5),     # n
             T(0.9)      # η_limit (relative compression)
@@ -49,5 +51,5 @@ function Basalt(
     #     error("Unknown damage model for basalt: :$damage")
     # end
 
-    return SolidMaterial(eos_inst, strength_inst, T(2700.0))  # ρ = 2700 kg/m^3
+    return SolidMaterial(eos_inst, strength_inst, ρ_ref)  # ρ = 2860.0 kg/m^3
 end

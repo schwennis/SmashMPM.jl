@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------- #
 
 # Struct Definition
-struct TillotsonEOS{T} <: AbstractEquationOfState
+@kwdef struct TillotsonEOS{T} <: AbstractEquationOfState
     ρ0::T   # Reference density
     A::T    # Tillotson parameter A
     B::T    # Tillotson parameter B
@@ -16,7 +16,7 @@ struct TillotsonEOS{T} <: AbstractEquationOfState
     b::T    # Tillotson parameter b
 end
 
-struct TillotsonState{T} <: AbstractEoSState
+@kwdef struct TillotsonState{T} <: AbstractEoSState
     p::T    # Pressure
     e::T    # Specific internal energy
 end

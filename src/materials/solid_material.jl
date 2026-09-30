@@ -35,13 +35,13 @@ include("strength_models/elastic_strength.jl")  # Elastic strength model impleme
 # ---------------------------------------------------------------------------- #
 #                                Composite Types                               #
 # ---------------------------------------------------------------------------- #
-struct SolidMaterial{T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel} <: AbstractMaterial
+@kwdef struct SolidMaterial{T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel} <: AbstractMaterial
     eos::EoS
     strength_model::SM
     ρ::T    # Reference density for Body creation
 end
 
-struct SolidMaterialState{T, EoSState<:AbstractEoSState, SMState<:AbstractStrengthModelState} <: AbstractMaterialState
+@kwdef struct SolidMaterialState{T, EoSState<:AbstractEoSState, SMState<:AbstractStrengthModelState} <: AbstractMaterialState
     c::T
     eos_state::EoSState
     strength_state::SMState
