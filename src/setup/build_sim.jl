@@ -49,6 +49,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
 
     # Create Grid
     min_corner, max_corner = bounding_box(all_positions)
+    intial_padding = 4
     grid_length = max_corner - min_corner .+ particle_spacing
     N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * setup.padding
     origin = min_corner .- (setup.padding) * setup.dx .- T(0.5) * particle_spacing
