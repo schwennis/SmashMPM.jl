@@ -14,6 +14,10 @@
     external_force::EF = NoExternalForce()
     shapefunction::SF = QuadraticSpline()
 
+    # Export Settings
+    exporter::Type{<:AbstractExporter} = NoExporter
+    export_time_interval::T = typeof(dx)(0.1)
+
     # Backend
     backend::B = CPU()
 end

@@ -1,4 +1,5 @@
 abstract type AbstractExporter end
+struct NoExporter <: AbstractExporter end
 
 # ---------------------------------------------------------------------------- #
 #                        Device-to-Host Transfer Helpers                       #
@@ -137,22 +138,25 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
             file["grid/origin"] = [cpu_model.grid.origin[1], cpu_model.grid.origin[2], cpu_model.grid.origin[3]]
             file["grid/dx"]     = 1.0 / cpu_model.grid.inv_dx
             
-            # Grid-Felder
+            # Momentum-Komponenten zu einem 4D-Array (Vektorfeld) zusammenfassen
+            Nx, Ny, Nz = size(grid_state.mass)
+            momentum_vec = Array{T, 4}(undef, 3, Nx, Ny, Nz)
+            momentum_vec[1, :, :, :] .= grid_state.momentum.x
+            momentum_vec[2, :, :, :] .= grid_state.momentum.y
+            momentum_vec[3, :, :, :] .= grid_state.momentum.z
+            
+            # Grid-Felder speichern
             if exporter.compression_level > 0
                 file["grid/mass", compress=exporter.compression_level] = grid_state.mass
-                file["grid/momentum_x", compress=exporter.compression_level] = grid_state.momentum.x
-                file["grid/momentum_y", compress=exporter.compression_level] = grid_state.momentum.y
-                file["grid/momentum_z", compress=exporter.compression_level] = grid_state.momentum.z
+                file["grid/momentum", compress=exporter.compression_level] = momentum_vec
             else
                 file["grid/mass"]       = grid_state.mass
-                file["grid/momentum_x"] = grid_state.momentum.x
-                file["grid/momentum_y"] = grid_state.momentum.y
-                file["grid/momentum_z"] = grid_state.momentum.z
+                file["grid/momentum"]   = momentum_vec
             end
         end
 
         attributes(file)["time"]  = Float64(time)
-        attributes(file)["cycle"] = step
+        attributes(file)["step"] = step
     end
 
     if exporter.write_xdmf
@@ -195,7 +199,7 @@ function _write_xdmf_metadata(output_dir::String, prefix::String, padded_idx::St
     xmf_path     = joinpath(output_dir, xmf_filename)
 
     precision = (T == Float64) ? 8 : 4
-    int_precision = sizeof(Int) # Sorgt bei 64-Bit Systemen für Precision="8", wichtig für ParaView
+    int_precision = sizeof(Int) 
 
     # 1. Partikel-Block (Polyvertex)
     particles_xml = ""
@@ -256,19 +260,9 @@ function _write_xdmf_metadata(output_dir::String, prefix::String, padded_idx::St
               $(h5_filename):/grid/mass
             </DataItem>
           </Attribute>
-          <Attribute Name="Momentum_X" AttributeType="Scalar" Center="Node">
-            <DataItem Dimensions="$(Nz) $(Ny) $(Nx)" NumberType="Float" Precision="$(precision)" Format="HDF">
-              $(h5_filename):/grid/momentum_x
-            </DataItem>
-          </Attribute>
-          <Attribute Name="Momentum_Y" AttributeType="Scalar" Center="Node">
-            <DataItem Dimensions="$(Nz) $(Ny) $(Nx)" NumberType="Float" Precision="$(precision)" Format="HDF">
-              $(h5_filename):/grid/momentum_y
-            </DataItem>
-          </Attribute>
-          <Attribute Name="Momentum_Z" AttributeType="Scalar" Center="Node">
-            <DataItem Dimensions="$(Nz) $(Ny) $(Nx)" NumberType="Float" Precision="$(precision)" Format="HDF">
-              $(h5_filename):/grid/momentum_z
+          <Attribute Name="Momentum" AttributeType="Vector" Center="Node">
+            <DataItem Dimensions="$(Nz) $(Ny) $(Nx) 3" NumberType="Float" Precision="$(precision)" Format="HDF">
+              $(h5_filename):/grid/momentum
             </DataItem>
           </Attribute>
         </Grid>
@@ -293,4 +287,3 @@ $(grid_xml)
         write(io, strip(xdmf_content))
     end
 end
-

@@ -54,13 +54,16 @@ export MPMModel
 
 include("setup/initial_p2g.jl")
 
-include("setup/build_sim.jl")
-export AbstractBody, Body, SimulationSetup, build_mpm_model
-
 include("export/extract_velocities.jl")
 include("export/exporter.jl")
 export AbstractExporter, HDF5Exporter, VTKExporter, write_output
 
+include("setup/build_sim.jl")
+export AbstractBody, Body, SimulationSetup, build_mpm_model
+
 include("solver.jl")
 export g2p2g!, courant_timestep
+
+include("solver/solve.jl")
+export step!, solve!
 end
