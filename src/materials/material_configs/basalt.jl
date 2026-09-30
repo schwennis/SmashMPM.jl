@@ -29,7 +29,7 @@ function Basalt(
             T(2860.0),  # ρ0  (kg/m^3)
             T(26.7e9),  # K0  (Pa)
             T(5.5),     # n
-            T(0.1)      # η_limit (relative compression)
+            T(0.9)      # η_limit (relative compression)
         )
     else
         error("Unknown EoS for basalt: :$eos")
