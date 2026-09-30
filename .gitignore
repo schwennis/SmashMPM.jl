@@ -36,3 +36,4 @@ JuliaLocalPreferences.toml
 *.h5
 *.jld2
 *.xmf
+*.xdmf
