@@ -34,6 +34,7 @@ export AbstractParticleSet, Particle, SoAParticleSet
 
 include("grid.jl")
 export AbstractGrid, DenseGrid, GridNode
+export grid_reset!
 
 include("boundary_conditions.jl")
 export AbstractBoundaryCondition, NoBoundaryCondition, NoSlipBoundary

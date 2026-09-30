@@ -36,10 +36,10 @@ function update_eos(eos::MurnaghanEOS{T}, eos_state::MurnaghanState{T}, ρ::T, s
 
     if eta_safe > eos.η_limit
         p_new = eos.K0 / eos.n * (eta_pow_n - one(T))
-        c = sqrt(eos.K0 / eos.ρ0 * eta_pow_n/eta_safe)  # η^(n-1) = η^n / η
+        c = sqrt(max(eos.K0 / eos.ρ0 * eta_pow_n/eta_safe, zero(T)))  # η^(n-1) = η^n / η
     else
         p_new = zero(T)
-        c = sqrt(eos.K0 / eos.ρ0 * eos.η_limit^(eos.n - one(T)))
+        c = sqrt(max(eos.K0 / eos.ρ0 * eos.η_limit^(eos.n - one(T)), zero(T)))  # η^(n-1) = η^n / η
     end
 
     return MurnaghanState{T}(p_new), c

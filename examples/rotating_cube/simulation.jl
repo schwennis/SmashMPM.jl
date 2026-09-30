@@ -8,8 +8,8 @@ using Base.Threads
 # ---------------------------------------------------------------------------- #
 #                               Backend Selection                              #
 # ---------------------------------------------------------------------------- #
-backend_to_use = :cpu
-# const backend_to_use = :cuda
+# backend_to_use = :cpu
+const backend_to_use = :cuda
 
 T = backend_to_use === :cpu ? Float64 : Float32 # Choose correct precision based on backend
 
@@ -29,7 +29,7 @@ end
 # ---------------------------------------------------------------------------- #
 const DX = T(0.05)
 const T_MAX = T(60)
-const PADDING = 3
+const PADDING = 13
 const PPC_1D = 2
 const CFL_NUMBER = T(0.4)
 const DT_MAX = T(1e-3)
@@ -60,7 +60,7 @@ function main(backend=BACKEND, T=T)
     sim_setup = SimulationSetup(
         dx=DX,
         t_max=T_MAX,
-        padding=13, # 15 to make sure the cube is fully contained in the grid
+        padding=PADDING,
         ppc_1d=PPC_1D,
         CFL_number=CFL_NUMBER,
         dt_max=DT_MAX,
@@ -71,6 +71,7 @@ function main(backend=BACKEND, T=T)
         output_dir="output", 
         filename_prefix="rotating_cube",
         write_xdmf=true,
+        export_grid=true
     )
 
     # Create a simulation with the cube body
@@ -81,8 +82,6 @@ function main(backend=BACKEND, T=T)
     grid_dimensions = size(model.grid.state_old)
     println("Simulation setup complete. Number of particles: $N_particles, Grid dimensions: $grid_dimensions")
 
-    model.grid.padding = PADDING
-
 
     steps = 0
     time_since_last_save = 0.0
@@ -90,6 +89,7 @@ function main(backend=BACKEND, T=T)
     while model.t < model.t_max
         dt = courant_timestep(model)
         g2p2g!(model, dt)
+        grid_reset!(model.grid)
         steps += 1
         model.t += dt
         time_since_last_save += dt
