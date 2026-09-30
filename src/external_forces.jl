@@ -17,7 +17,7 @@ end
 # ---------------------------------------------------------------------------- #
 #                               Constant Gravity                               #
 # ---------------------------------------------------------------------------- #
-struct ConstantGravity{T} <: AbstractExternalForce
+@kwdef struct ConstantGravity{T} <: AbstractExternalForce
     g::SVector{3, T}
 end
 
@@ -38,7 +38,7 @@ end
 # ---------------------------------------------------------------------------- #
 #                              Radial Force Field                              #
 # ---------------------------------------------------------------------------- #
-struct RadialInvSquareForceField{T} <: AbstractExternalForce
+@kwdef struct RadialInvSquareForceField{T} <: AbstractExternalForce
     F_0::T
     center::SVector{3, T}
 end
@@ -94,7 +94,7 @@ end
 # ---------------------------------------------------------------------------- #
 #                              Vector Field Force                              #
 # ---------------------------------------------------------------------------- #
-struct VectorFieldForce{A} <: AbstractExternalForce
+@kwdef struct VectorFieldForce{A} <: AbstractExternalForce
     force_field::A
 end
 

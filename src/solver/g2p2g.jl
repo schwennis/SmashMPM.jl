@@ -8,7 +8,7 @@
     origin, inv_dx::T, spline,
     dt::T
 ) where T
-    mass_cutoff = eps(T) * 100
+    mass_cutoff = sqrt(floatmin(T))  # Threshold to avoid division by zero in G2P
 
     p_idx = @index(Global, Linear)
 

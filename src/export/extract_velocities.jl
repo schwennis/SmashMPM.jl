@@ -31,7 +31,7 @@ function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, splin
             N = shapefunction(spline, natural_coords)
 
             m_node = grid_state.mass[i, j, k]
-            if m_node > eps(T) * 100
+            if m_node > sqrt(floatmin(T))  # Avoid division by zero
                 v_grid = grid_state.momentum[i, j, k] / m_node
                 vel += N * v_grid
             end
@@ -41,5 +41,3 @@ function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, splin
 
     return velocities
 end
-
-const _reconstruct_velocities_cpu = extract_velocities

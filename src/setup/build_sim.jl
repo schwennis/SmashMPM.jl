@@ -73,13 +73,20 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
             particle_counter += 1
         end
 
+        # Affine Matrices from moving least squares (MLS) velocity gradient estimation
+        velocity_gradients = estimate_velocity_gradients(data.pos, data.vel, particle_spacing)    
+
         # Daten für initial_p2g! auf Backend laden
         pos_dev         = _to_backend(setup.backend, data.pos)
         vel_dev         = _to_backend(setup.backend, data.vel)
+        affines_dev     = _to_backend(setup.backend, velocity_gradients)
         mass_dev        = _to_backend(setup.backend, data.mass)
         soundspeeds_dev = _to_backend(setup.backend, soundspeeds_cpu)
 
-        initial_p2g!(grid, pos_dev, vel_dev, mass_dev, soundspeeds_dev, setup.shapefunction)
+
+
+
+        initial_p2g!(grid, pos_dev, vel_dev, affines_dev, mass_dev, soundspeeds_dev, setup.shapefunction)
 
         # Return ParticleSet auf dem Backend
         return setup.particle_set_type(particle_vector, data.material, setup.backend)
