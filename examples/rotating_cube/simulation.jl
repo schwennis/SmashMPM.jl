@@ -27,9 +27,9 @@ end
 # ---------------------------------------------------------------------------- #
 #                             Simulation Parameters                            #
 # ---------------------------------------------------------------------------- #
-const DX = T(0.05)
-const T_MAX = T(60)
-const PADDING = 13
+const DX = T(0.1)
+const T_MAX = T(5)
+const PADDING = 8
 const PPC_1D = 2
 const CFL_NUMBER = T(0.4)
 const DT_MAX = T(1e-3)
@@ -40,7 +40,8 @@ const SAVE_TIME_INTERVAL = T(0.10)   # Save simulation state every 1.0 seconds
 #                                Cube Parameters                               #
 # ---------------------------------------------------------------------------- #
 const CUBE_SIZE = T(1.0)
-const CUBE_MATERIAL = Basalt(T, eos=:murnaghan, strength=:elastic)
+# const CUBE_MATERIAL = Basalt(T, eos=:murnaghan, strength=:elastic)
+const CUBE_MATERIAL = NeoHookean(E=T(1e6), ν=T(0.3), ρ=T(1000.0))
 const CUBE_ROT_SPEED = T(2π / 10.0)  # radians per second
 
 

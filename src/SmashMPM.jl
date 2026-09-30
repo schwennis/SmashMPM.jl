@@ -11,7 +11,6 @@ using Atomix: @atomic
 using JLD2
 using HDF5
 using Printf
-using WriteVTK
 
 include("helpers.jl")
 
@@ -56,9 +55,9 @@ include("setup/initial_p2g.jl")
 include("setup/build_sim.jl")
 export AbstractBody, Body, SimulationSetup, build_mpm_model
 
+include("export/extract_velocities.jl")
 include("export/exporter.jl")
 export AbstractExporter, HDF5Exporter, VTKExporter, write_output
-include("export/extract_velocities.jl")
 
 include("solver.jl")
 export g2p2g!, courant_timestep
