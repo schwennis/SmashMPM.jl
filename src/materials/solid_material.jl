@@ -17,6 +17,7 @@ function update_eos(eos::AbstractEquationOfState, eos_state::AbstractEoSState, Ï
 end
 
 include("eos/tillotson_eos.jl") # Tillotson EoS implementation
+include("eos/murnaghan_eos.jl") # Murnaghan EoS implementation
 
 # Strength Model
 abstract type AbstractStrengthModel end

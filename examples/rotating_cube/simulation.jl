@@ -40,7 +40,7 @@ const SAVE_TIME_INTERVAL = T(0.10)   # Save simulation state every 1.0 seconds
 #                                Cube Parameters                               #
 # ---------------------------------------------------------------------------- #
 const CUBE_SIZE = T(1.0)
-const CUBE_MATERIAL = Basalt(T, eos=:tillotson, strength=:elastic)
+const CUBE_MATERIAL = Basalt(T, eos=:murnaghan, strength=:elastic)
 const CUBE_ROT_SPEED = T(2π / 10.0)  # radians per second
 
 
