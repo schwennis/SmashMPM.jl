@@ -74,7 +74,7 @@ function main()
     for (i, file_path) in enumerate(files)
         print("Processing $(i)-th file: $file_path          \r")
         t, particle_kinetic_energy, particle_angular_momentum, grid_kinetic_energy, grid_angular_momentum = extract_energy_and_particle_angular_momentum(file_path)
-        if i == 1 || t > 1.0
+        if i == 1
             continue
         end
         push!(times, t)

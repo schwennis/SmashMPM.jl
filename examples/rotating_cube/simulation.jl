@@ -56,6 +56,13 @@ function main(backend=BACKEND, T=T)
     println("Creating cube body...")
     body_cube = build_cube(T)
 
+        exporter = HDF5Exporter(
+        output_dir="output", 
+        filename_prefix="rotating_cube",
+        write_xdmf=true,
+        export_grid=true
+    )
+
     # Setup the simulation
     println("Setting up simulation...")
     sim_setup = SimulationSetup(
@@ -65,14 +72,9 @@ function main(backend=BACKEND, T=T)
         ppc_1d=PPC_1D,
         CFL_number=CFL_NUMBER,
         dt_max=DT_MAX,
-        backend=BACKEND
-    )
-
-    exporter = HDF5Exporter(
-        output_dir="output", 
-        filename_prefix="rotating_cube",
-        write_xdmf=true,
-        export_grid=true
+        backend=BACKEND,
+        export_time_interval=SAVE_TIME_INTERVAL,
+        exporter=exporter
     )
 
     # Create a simulation with the cube body
@@ -84,28 +86,8 @@ function main(backend=BACKEND, T=T)
     println("Simulation setup complete. Number of particles: $N_particles, Grid dimensions: $grid_dimensions")
 
 
-    steps = 0
-    time_since_last_save = 0.0
-    real_time_start = time()
-    while model.t < model.t_max
-        dt = courant_timestep(model)
-        g2p2g!(model, dt)
-        grid_reset!(model.grid)
-        steps += 1
-        model.t += dt
-        time_since_last_save += dt
-        if steps % 1000 == 0
-            real_time_elapsed = time() - real_time_start
-            eta = (real_time_elapsed / model.t * (model.t_max - model.t))/3600
-
-            print("Step: $steps, Time: $(round(model.t, digits=4)), dt: $(round(dt, digits=6)), eta: $(round(eta, digits=2))h \r")
-        end
-        if time_since_last_save >= SAVE_TIME_INTERVAL || steps == 1
-            write_output(exporter, model, steps)
-            time_since_last_save = 0.0
-        
-        end
-    end
+    solve!(model, sim_setup)
+    
     println("\nSimulation complete.")
 end
 

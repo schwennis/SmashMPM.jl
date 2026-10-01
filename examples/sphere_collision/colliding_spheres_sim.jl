@@ -56,8 +56,8 @@ const SAVE_TIME_INTERVAL = T(T_MAX / (animation_time * fps))   # ≈ 3.3e-5 s, 3
 # ---------------------------------------------------------------------------- #
 #                               Sphere Materials                               #
 # ---------------------------------------------------------------------------- #
-const SPHERE1_MATERIAL = Basalt(T, eos=:murnaghan, strength=:hyperelastic)
-const SPHERE2_MATERIAL = Basalt(T, eos=:murnaghan, strength=:hyperelastic)
+const SPHERE1_MATERIAL = Iron(T, eos=:murnaghan, strength=:hyperelastic)
+const SPHERE2_MATERIAL = Iron(T, eos=:murnaghan, strength=:hyperelastic)
 
 
 # ---------------------------------------------------------------------------- #

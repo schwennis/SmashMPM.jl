@@ -1,3 +1,5 @@
+# using Printf
+
 function step!(model::MPMModel)
     dt = courant_timestep(model)
 
@@ -41,7 +43,7 @@ function solve!(model::MPMModel, setup::SimulationSetup)
 
             time_since_last_export = T(0.0)
             write_output(setup.exporter, model, step, model.t)
-            println("Exported output at time $(round(model.t, digits=4)) (step $step, current dt: $(format(dt, precision=4))). eta: $(round(eta, digits=2))h")
+            println("Exported output at time $(round(model.t, digits=4)) (step $step, current dt: $(@sprintf("%.2e", dt))). eta: $(round(eta, digits=2))h")
         end
     end
 end
