@@ -10,12 +10,15 @@ function extract_energy_and_angular_momentum(file_path::String)
         t = attrs(file)["time"]
         masses = read(file["mass"])
         T = eltype(masses)
+        masses = Float64.(masses)
         
         positions_mat = read(file["position"])
         positions = reinterpret(reshape, SVector{3, T}, positions_mat)
-        
+        positions = SVector{3, Float64}.(positions)
+
         velocities_mat = read(file["velocity"])
         velocities = reinterpret(reshape, SVector{3, T}, velocities_mat)
+        velocities = SVector{3, Float64}.(velocities)
 
         total_mass = sum(masses)
         COM = sum(masses .* positions) / total_mass
@@ -37,7 +40,7 @@ function extract_energy_and_angular_momentum(file_path::String)
 end
 
 function main()
-    files = glob("output/rotating_cube*.h5")
+    files = glob("output_F64_NeoHookean/rotating_cube*.h5")
     sort!(files, by = f -> parse(Int, match(r"\d+", basename(f)).match))
 
     times = Float64[]
@@ -45,11 +48,11 @@ function main()
     angular_momenta = Float64[]
 
     for (i, file_path) in enumerate(files)
-        if i == 1
-            continue
-        end
         print("Processing $(i)-th file: $file_path          \r")
         t, kinetic_energy, angular_momentum = extract_energy_and_angular_momentum(file_path)
+        if t < 5
+            continue
+        end
         push!(times, t)
         push!(kinetic_energies, kinetic_energy)
         push!(angular_momenta, angular_momentum)
@@ -60,8 +63,8 @@ function main()
     kinetic_energies_rel = kinetic_energies ./ kinetic_energies[1]
     angular_momenta_rel = angular_momenta ./ angular_momenta[1]
 
-    println("Final deviation in kinetic energy: $(abs(kinetic_energies[end] - 1))")
-    println("Final deviation in angular momentum: $(abs(angular_momenta[end] - 1))")
+    println("Final deviation in kinetic energy: $(abs(kinetic_energies_rel[end] - 1))")
+    println("Final deviation in angular momentum: $(abs(angular_momenta_rel[end] - 1))")
 
     # Plotting
     fig = Figure(size = (800, 400))

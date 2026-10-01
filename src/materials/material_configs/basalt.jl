@@ -6,7 +6,7 @@ Creates a Basalt material with the specified equation of state (EoS), strength m
 function Basalt(
     ::Type{T} = Float64; 
     eos::Symbol = :tillotson, 
-    strength::Symbol = :elastic, 
+    strength::Symbol = :hypoelastic, 
     # damage::Symbol = :none
 ) where {T<:AbstractFloat}
 
@@ -38,8 +38,10 @@ function Basalt(
     end
 
     # strength model 
-    strength_inst = if strength === :elastic
-        ElasticStrengthModel{T}(T(2.27e10))   # μ = 22.7 GPa
+    strength_inst = if strength === :hyperelastic
+        HyperElasticStrengthModel{T}(T(2.27e10))   # μ = 22.7 GPa
+    elseif strength === :hypoelastic
+        HypoElasticStrengthModel{T}(T(2.27e10))   # μ = 22.7 GPa
     else
         error("Unknown strength model for basalt: :$strength")
     end

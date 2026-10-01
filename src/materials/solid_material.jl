@@ -29,7 +29,8 @@ function strength_model(strength_model::AbstractStrengthModel, strength_state::A
     error("strength_model not implemented for $(typeof(strength_model))")
 end
 
-include("strength_models/elastic_strength.jl")  # Elastic strength model implementation
+include("strength_models/hypoelastic_strength.jl")  # hypoeastic strength model implementation
+include("strength_models/hyperelastic_strength.jl") # hyperelastic strength model implementation
 
 
 # ---------------------------------------------------------------------------- #
@@ -82,7 +83,7 @@ function material_model(
     D_dev = D - (trD / T(3)) * one(SMatrix{3,3,T,9})
 
     # Strength model update
-    s_new, strength_state_new, c_p = strength_model(material.strength_model, mat_state.strength_state, ρ, D_dev, W , dt)
+    s_new, strength_state_new, c_p = strength_model(material.strength_model, mat_state.strength_state, ρ, F, D_dev, W , dt)
 
     # Stress work
     p_old = mat_state.eos_state.p
