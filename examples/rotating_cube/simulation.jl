@@ -8,7 +8,7 @@ using Base.Threads
 # ---------------------------------------------------------------------------- #
 #                               Backend Selection                              #
 # ---------------------------------------------------------------------------- #
-backend_to_use = :cpu
+backend_to_use = :cuda
 # const backend_to_use = :cuda
 
 T = backend_to_use === :cpu ? Float32 : Float32 # Choose correct precision based on backend
@@ -34,7 +34,7 @@ const PPC_1D = 2
 const CFL_NUMBER = T(0.4)
 const DT_MAX = T(1e-3)
 
-const SAVE_TIME_INTERVAL = T(0.1)   # Save simulation state every 10 seconds
+const SAVE_TIME_INTERVAL = T(0.1)   # Save simulation state every .1 seconds
 
 # ---------------------------------------------------------------------------- #
 #                                Cube Parameters                               #

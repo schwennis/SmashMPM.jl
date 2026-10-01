@@ -25,9 +25,12 @@ function strength_model(strength_model::HypoElasticStrengthModel, strength_state
     # Update the deviatoric stress tensor
     s_new = s_old + dt * (2 * μ * D_dev + s_rot)
 
+    # Compute the deviatoric work rate
+    dev_work_rate = dot(s_new, D_dev)
+
     # p-wave speed
     c_p = sqrt(T(4) * μ / (T(3) * ρ))
 
-    return s_new, HypoElasticStrengthModelState{T}(s_new), c_p
+    return s_new, HypoElasticStrengthModelState{T}(s_new), c_p, dev_work_rate
 end
 

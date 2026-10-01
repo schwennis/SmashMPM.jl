@@ -25,7 +25,7 @@ abstract type AbstractStrengthModelState end
 init_strength_state(sm::AbstractStrengthModel) = error("init_strength_state not implemented for $(typeof(sm))")
 
 
-function strength_model(strength_model::AbstractStrengthModel, strength_state::AbstractStrengthModelState, ρ, D_dev, W , dt)
+function strength_model(strength_model::AbstractStrengthModel, strength_state::AbstractStrengthModelState, ρ, F, D_dev, W , dt)
     error("strength_model not implemented for $(typeof(strength_model))")
 end
 
@@ -83,11 +83,11 @@ function material_model(
     D_dev = D - (trD / T(3)) * one(SMatrix{3,3,T,9})
 
     # Strength model update
-    s_new, strength_state_new, c_p = strength_model(material.strength_model, mat_state.strength_state, ρ, F, D_dev, W , dt)
+    s_new, strength_state_new, c_p, dev_work_rate = strength_model(material.strength_model, mat_state.strength_state, ρ, F, D_dev, W , dt)
 
     # Stress work
     p_old = mat_state.eos_state.p
-    stress_work = (-p_old * trD + dot(s_new, D_dev)) / ρ
+    stress_work = (-p_old * trD + dev_work_rate) / ρ
 
     # EOS update
     eos_state_new, c_eos = update_eos(material.eos, mat_state.eos_state, ρ, stress_work, dt)
