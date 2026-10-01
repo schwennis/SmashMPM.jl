@@ -11,7 +11,7 @@ using Base.Threads
 backend_to_use = :cuda
 # const backend_to_use = :cuda
 
-T = backend_to_use === :cpu ? Float32 : Float32 # Choose correct precision based on backend
+T = backend_to_use === :cpu ? Float64 : Float64 # Choose correct precision based on backend
 
 if backend_to_use === :cuda
     println("Using CUDA backend...")

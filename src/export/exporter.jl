@@ -1,5 +1,8 @@
 abstract type AbstractExporter end
 struct NoExporter <: AbstractExporter end
+function write_output(exporter::NoExporter, model::MPMModel, step::Int, time::Real = model.t)
+    return nothing
+end
 
 # ---------------------------------------------------------------------------- #
 #                        Device-to-Host Transfer Helpers                       #
@@ -60,7 +63,7 @@ end
 # ---------------------------------------------------------------------------- #
 
 @kwdef struct HDF5Exporter <: AbstractExporter
-    output_dir::String
+    output_dir::String = "output"
     filename_prefix::String = "sim_"
     write_xdmf::Bool = true
     compression_level::Int = 3

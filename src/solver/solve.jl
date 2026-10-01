@@ -22,7 +22,9 @@ end
 
 
 function solve!(model::MPMModel, setup::SimulationSetup)
-    T = eltype(model.grid.mass)
+    T = eltype(model.grid.state_old.mass)
+
+    real_time_start = time()
     
     time_since_last_export = T(0.0)
     step = 0
@@ -32,11 +34,14 @@ function solve!(model::MPMModel, setup::SimulationSetup)
         time_since_last_export += dt
         step += 1
 
-        if !(setup.exporter isa NoExporter) && time_since_last_export >= model.export_time_interval
+        if !(setup.exporter isa NoExporter) && time_since_last_export >= setup.export_time_interval
+            elapsed_real_time = time() - real_time_start
+            eta = (elapsed_real_time / model.t * (model.t_max - model.t))/3600
+
+
             time_since_last_export = T(0.0)
             write_output(setup.exporter, model, step, model.t)
-            model.next_export_time += setup.export_time_interval
-            println("Exported output at time %.4f (step %d)", model.t, step)
+            println("Exported output at time $(round(model.t, digits=4)) (step $step, current dt: $(format(dt, precision=4))). eta: $(round(eta, digits=2))h")
         end
     end
 end

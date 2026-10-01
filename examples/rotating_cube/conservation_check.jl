@@ -62,7 +62,7 @@ function extract_energy_and_particle_angular_momentum(file_path::String)
 end
 
 function main()
-    files = glob("output_analytic_hyperelastic/rotating_cube*.h5")
+    files = glob("output/rotating_cube*.h5")
     sort!(files, by = f -> parse(Int, match(r"\d+", basename(f)).match))
 
     times = Float64[]

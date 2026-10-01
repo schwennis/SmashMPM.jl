@@ -1,8 +1,9 @@
-@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T}
+@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T, E}
     # Grid
     dx::T
     grid_type::Type{G} = DenseGrid
     padding::Int = 2
+    buffer_width::SVector{3, Int} = zero(SVector{3, Int})
 
     # Properties
     CFL_number::T = typeof(dx)(0.4)
@@ -15,7 +16,7 @@
     shapefunction::SF = QuadraticSpline()
 
     # Export Settings
-    exporter::Type{<:AbstractExporter} = NoExporter
+    exporter::E = NoExporter()
     export_time_interval::T = typeof(dx)(0.1)
 
     # Backend
@@ -53,10 +54,12 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
 
     # Create Grid
     min_corner, max_corner = bounding_box(all_positions)
-    intial_padding = 4
     grid_length = max_corner - min_corner .+ particle_spacing
-    N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * setup.padding
-    origin = min_corner .- (setup.padding) * setup.dx .- T(0.5) * particle_spacing
+
+    margin = setup.padding .+ setup.buffer_width
+    
+    N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * margin
+    origin = min_corner .- margin * setup.dx .- T(0.5) * particle_spacing
 
     grid = DenseGrid(setup.dx, N, origin, setup.padding, setup.backend)
     
