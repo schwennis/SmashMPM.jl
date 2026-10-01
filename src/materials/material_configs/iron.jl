@@ -9,11 +9,12 @@ function Iron(
     strength::Symbol = :elastic, 
     # damage::Symbol = :none
 ) where {T<:AbstractFloat}
+    ρ_ref = T(7874.0)  # Reference density for iron in kg/m^3
 
     # 1. Equation of State (EoS)
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            T(7874.0),   # ρ0  (kg/m^3)
+            ρ_ref,   # ρ0  (kg/m^3)
             T(128.0e9),  # A   (Pa)
             T(105.0e9),  # B   (Pa)
             T(5.0),      # α
@@ -26,7 +27,7 @@ function Iron(
         )
     elseif eos === :murnaghan
         MurnaghanEOS{T}(
-            T(7874.0),   # ρ0  (kg/m^3)
+            ρ_ref,   # ρ0  (kg/m^3)
             T(113.5e9),  # K0  (Pa)
             T(5.32),     # n
             T(0.9)       # η_limit (relative compression)
@@ -36,8 +37,10 @@ function Iron(
     end
 
     # strength model 
-    strength_inst = if strength === :elastic
-        ElasticStrengthModel{T}(T(105e9)) # μ = 105 GPa
+    strength_inst = if strength === :hyperelastic
+        HyperElasticStrengthModel{T}(T(105e9)) # μ = 105 GPa
+    elseif strength === :hypoelastic
+        HypoElasticStrengthModel{T}(T(105e9)) # μ = 105 GPa
     else
         error("Unknown strength model for iron: :$strength")
     end
@@ -51,5 +54,5 @@ function Iron(
     #     error("Unknown damage model for iron: :$damage")
     # end
 
-    return SolidMaterial(eos_inst, strength_inst, T(7800.0))
+    return SolidMaterial(eos_inst, strength_inst, ρ_ref)  # ρ = 7874.0 kg/m^3
 end

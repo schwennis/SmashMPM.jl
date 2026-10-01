@@ -8,10 +8,10 @@ using Base.Threads
 # ---------------------------------------------------------------------------- #
 #                               Backend Selection                              #
 # ---------------------------------------------------------------------------- #
-# backend_to_use = :cpu
-const backend_to_use = :cuda
+backend_to_use = :cpu
+# const backend_to_use = :cuda
 
-T = backend_to_use === :cpu ? Float64 : Float32 # Choose correct precision based on backend
+T = backend_to_use === :cpu ? Float32 : Float32 # Choose correct precision based on backend
 
 if backend_to_use === :cuda
     println("Using CUDA backend...")
@@ -28,7 +28,7 @@ end
 #                             Simulation Parameters                            #
 # ---------------------------------------------------------------------------- #
 const DX = T(0.05)
-const T_MAX = T(20.0)
+const T_MAX = T(10.0)
 const PADDING = 8
 const PPC_1D = 2
 const CFL_NUMBER = T(0.4)
@@ -40,7 +40,7 @@ const SAVE_TIME_INTERVAL = T(0.1)   # Save simulation state every 10 seconds
 #                                Cube Parameters                               #
 # ---------------------------------------------------------------------------- #
 const CUBE_SIZE = T(1.0)
-const CUBE_MATERIAL = Basalt(T, eos=:murnaghan, strength=:elastic)
+const CUBE_MATERIAL = Basalt(T, eos=:murnaghan, strength=:hyperelastic)
 # const CUBE_MATERIAL = NeoHookean(E=T(1e6), ν=T(0.3), ρ=T(1000.0))
 const CUBE_ROT_SPEED = T(2)  # radians per second
 
