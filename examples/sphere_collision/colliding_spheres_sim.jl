@@ -26,18 +26,18 @@ end
 # ---------------------------------------------------------------------------- #
 #                               Impact Parameters                              #
 # ---------------------------------------------------------------------------- #
-const IMPACT_VELOCITY = 100     # m/s
+const IMPACT_VELOCITY = 1     # m/s
 const IMPACT_PARAMETER = 0.5    # Impact parameter (0 = head-on, 1 = grazing)
 const SPHERE_RADIUS = 0.5
-const INITIAL_SEPARATION = 2.0 * SPHERE_RADIUS + 0.5
+const INITIAL_SEPARATION = 2.0 * SPHERE_RADIUS + 1.0
 time_to_collision = (INITIAL_SEPARATION - 2 * SPHERE_RADIUS) / IMPACT_VELOCITY
 
 
 # ---------------------------------------------------------------------------- #
 #                             Simulation Parameters                            #
 # ---------------------------------------------------------------------------- #
-const DX = T(0.075)
-const T_MAX = T(2*time_to_collision)
+const DX = T(0.03)
+const T_MAX = T(3*time_to_collision)  # Run simulation for thrice the time to collision
 const PADDING = 3
 const PPC_1D = 2
 const CFL_NUMBER = T(0.4)
@@ -56,8 +56,8 @@ const SAVE_TIME_INTERVAL = T(T_MAX / (animation_time * fps))   # ≈ 3.3e-5 s, 3
 # ---------------------------------------------------------------------------- #
 #                               Sphere Materials                               #
 # ---------------------------------------------------------------------------- #
-const SPHERE1_MATERIAL = Iron(T, eos=:murnaghan, strength=:hyperelastic)
-const SPHERE2_MATERIAL = Iron(T, eos=:murnaghan, strength=:hyperelastic)
+const SPHERE1_MATERIAL = Basalt(T, eos=:tillotson, strength=:hypoelastic)
+const SPHERE2_MATERIAL = Basalt(T, eos=:tillotson, strength=:hypoelastic)
 
 
 # ---------------------------------------------------------------------------- #
