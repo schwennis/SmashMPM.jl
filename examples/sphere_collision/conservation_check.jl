@@ -62,7 +62,7 @@ function extract_energy_and_particle_angular_momentum(file_path::String)
 end
 
 function main()
-    files = glob("output/rotating_cube*.h5")
+    files = glob("output/colliding_spheres*.h5")
     sort!(files, by = f -> parse(Int, match(r"\d+", basename(f)).match))
 
     times = Float64[]
@@ -74,7 +74,7 @@ function main()
     for (i, file_path) in enumerate(files)
         print("Processing $(i)-th file: $file_path          \r")
         t, particle_kinetic_energy, particle_angular_momentum, grid_kinetic_energy, grid_angular_momentum = extract_energy_and_particle_angular_momentum(file_path)
-        if i == 1
+        if i == 1 || t > 1.0
             continue
         end
         push!(times, t)
@@ -97,7 +97,7 @@ function main()
     println("Grid: Final deviation in angular momentum: $(abs(grid_angular_momenta_rel[end] - 1))")
 
     # Plotting
-    fig = Figure(size = (800, 400))
+    fig = Figure(size = (800, 700))
     
     ax1 = Axis(fig[1, 1], xlabel = "Time t", ylabel = "E_kin / E_kin(0)")
     lines!(ax1, times, particle_kinetic_energies_rel, color = :blue, label = "Kinetic Energy")
