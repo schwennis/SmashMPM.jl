@@ -69,7 +69,7 @@ end
         N = shapefunction(spline, natural_coords)
         r_rel = - natural_coords * (1 / inv_dx)
 
-        p_update = N * (mass * vel + affine * r_rel)
+        p_update = N * (mass * vel + mass * affine * r_rel) # Stress isnt calculated yet, so we need the factor m
         
         @atomic :monotonic grid_state.mass[i, j, k] += N * mass
         @atomic :monotonic grid_state.momentum.x[i, j, k] += p_update[1]
