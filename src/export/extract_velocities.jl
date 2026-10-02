@@ -32,6 +32,7 @@ function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, splin
 
             natural_coords = grid_pos - SVector(i, j, k)
             N = shapefunction(spline, natural_coords)
+            r_rel = - natural_coords * (1 / inv_dx)
 
             m_node = grid_state.mass[i, j, k]
             if m_node > sqrt(floatmin(T))  # Avoid division by zero

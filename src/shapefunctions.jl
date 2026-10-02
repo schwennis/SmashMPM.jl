@@ -24,11 +24,11 @@ end
     
     w = zero(T)
 
-    if abs_d < 0.5
+    if abs_d < T(0.5)
         # Fall 1: |x| < 0.5
         # N(x) = 0.75 - x^2
         w = T(0.75) - abs_d^2
-    elseif abs_d < 1.5
+    elseif abs_d < T(1.5)
         # 0.5 <= |x| < 1.5
         # N(x) = 0.5 * (1.5 - |x|)^2
         val = T(1.5) - abs_d
