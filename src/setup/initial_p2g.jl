@@ -1,55 +1,8 @@
-using Base.Threads
-
-function estimate_velocity_gradients(positions, velocities, particle_spacing::T, R::T=T(2)*particle_spacing) where T
-    cell(x) = (floor(Int, x[1]/R), floor(Int, x[2]/R), floor(Int, x[3]/R))
-    
-    cells = Dict{Tuple{Int, Int, Int}, Vector{Int}}()
-    for (i, x) in enumerate(positions)
-        push!(get!(cells, cell(x), Int[]), i)
-    end
-
-    C = Vector{SMatrix{3,3,T,9}}(undef, length(positions))
-
-    @threads for p in eachindex(positions)
-        xp, vp = positions[p], velocities[p]
-        cx, cy, cz = cell(xp)
-
-        A = zero(SMatrix{3,3,T,9})     # Σ w (Δv)(Δx)ᵀ
-        M = zero(SMatrix{3,3,T,9})     # Σ w (Δx)(Δx)ᵀ
-
-        for dx in -1:1, dy in -1:1, dz in -1:1
-            list = get(cells, (cx+dx, cy+dy, cz+dz), nothing)
-            list === nothing && continue
-            for q in list
-                q == p && continue
-                r  = positions[q] - xp
-                d2 = dot(r, r)
-                d2 >= R^2 && continue
-                w  = (one(T) - d2 / R^2)^2          # glatte, kompakte Gewichtung
-                A += w * (velocities[q] - vp) * r'
-                M += w * (r * r')
-            end
-        end
-
-        # Rang prüfen (isolierte Partikel): dann C = 0
-        if det(M) > T(1e-6) * (tr(M) / 3)^3
-            C[p] = A / M                            # A * inv(M)
-        else
-            C[p] = zero(SMatrix{3,3,T,9})
-        end
-    end
-    return C
-
-end
-
-
-
-@kernel function initial_p2g_kernel!(grid_state, positions, velocities, affines, masses, soundspeeds, origin, inv_dx, spline)
+@kernel function initial_p2g_kernel!(grid_state, positions, velocities, affine, masses, soundspeeds, origin, inv_dx, spline)
     p_idx = @index(Global, Linear)
 
     pos = positions[p_idx]
     vel = velocities[p_idx]
-    affine = affines[p_idx]
     mass = masses[p_idx]
 
     grid_pos = get_grid_position(pos, inv_dx, origin)
