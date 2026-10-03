@@ -295,3 +295,18 @@ struct Body{S,M,T} <: AbstractBody
     rot_vector::SVector{3, T}
     material::M
 end
+
+
+function affine_matrix(ω_vector::SVector{3, T}) where {T}
+    z = zero(T)
+    return SMatrix{3, 3, T, 9}(
+         z,     ω_vector[3], -ω_vector[2],
+        -ω_vector[3],  z,     ω_vector[1],
+         ω_vector[2], -ω_vector[1],  z
+    )
+end
+
+
+function initial_affine_matrix(body::Body)
+    return affine_matrix(body.rot_vector)
+end
