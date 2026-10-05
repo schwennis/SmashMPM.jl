@@ -1,6 +1,6 @@
 @testset "Constructor & Initial State" begin
 	eos = MurnaghanEOS(ρ0=1.0, K0=100.0, n=2.0, η_limit=0.9)
-	strength = ElasticStrengthModel(μ=30.0)
+	strength = HypoElasticStrengthModel(μ=30.0)
 	material = SolidMaterial(eos, strength, 1.0)
 
 	@test material.eos === eos
@@ -11,7 +11,7 @@
 
 	@test state isa SolidMaterialState{Float64}
 	@test state.eos_state isa MurnaghanState{Float64}
-	@test state.strength_state isa ElasticStrengthModelState{Float64}
+	@test state.strength_state isa HypoElasticStrengthModelState{Float64}
 	@test state.eos_state.p == 0.0
 	@test state.strength_state.s == zeros(SMatrix{3, 3, Float64, 9})
 	@test get_soundspeed(material, state) ≈ sqrt(100.0)
@@ -19,7 +19,7 @@ end
 
 @testset "Material Model" begin
 	eos = MurnaghanEOS(ρ0=1.0, K0=100.0, n=2.0, η_limit=0.9)
-	strength = ElasticStrengthModel(μ=30.0)
+	strength = HypoElasticStrengthModel(μ=30.0)
 	material = SolidMaterial(eos, strength, 1.0)
 	state = get_initial_material_state(material)
 	identity = one(SMatrix{3, 3, Float64, 9})

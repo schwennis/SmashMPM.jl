@@ -20,8 +20,10 @@ export material_model, get_soundspeed, get_initial_material_state   # Material m
 export NeoHookean, LinearElastic                                    # hyperelastic materials
 export NoMaterialModel                                              # Debugging / Fallback
 export SolidMaterial, SolidMaterialState                            # Solid materials
-export MurnaghanEOS, TillotsonEOS                                   # Equation of state models
-export ElasticStrengthModel                                         # Strength models
+export MurnaghanEOS, MurnaghanState                                 # Murnaghan EOS
+export TillotsonEOS, TillotsonState                                 # Tillotson EOS
+export HypoElasticStrengthModel, HypoElasticStrengthModelState      # Hypoelastic strength model
+export HyperElasticStrengthModel, HyperElasticStrengthModelState    # Hyperelastic strength model
 # Material configs
 export Basalt, Iron
 
