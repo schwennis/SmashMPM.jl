@@ -93,7 +93,7 @@
         @atomic :monotonic state_new.momentum.x[i, j, k] += p_update[1]
         @atomic :monotonic state_new.momentum.y[i, j, k] += p_update[2]
         @atomic :monotonic state_new.momentum.z[i, j, k] += p_update[3]
-        @atomic :monotonic state_new.wave_speed[i, j, k] = max(state_new.wave_speed[i, j, k], wavespeed_new)
+        @atomic :monotonic state_new.wave_speed[i, j, k] max wavespeed_new
     end
 
 end
