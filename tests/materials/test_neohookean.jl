@@ -67,6 +67,7 @@ end
     V0_dummy = 1.0
     m_dummy = 1.0
     dt_dummy = 0.1
+    dx_dummy = 1.0
 
     @testset "Identity Deformation" begin
         # F = Identity matrix (No deformation)
@@ -75,11 +76,11 @@ end
                 0.0 0.0 1.0]
         
         # --- JET Checks ---
-        @test_opt material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy)
-        @test_call material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy)
+        @test_opt material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy, dx_dummy)
+        @test_call material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy, dx_dummy)
         # ------------------
         
-        σ_id, new_state = material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy)
+        σ_id, new_state = material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy, dx_dummy)
         
         # For J=1 (log(J)=0) and b=I, the Cauchy stress σ must be exactly 0
         @test all(σ_id .≈ 0.0)
@@ -93,11 +94,11 @@ end
                      0.0 0.0 1.0]
                         
         # --- JET Checks ---
-        @test_opt material_model(mat, state, F_stretch, C_dummy, V0_dummy, m_dummy, dt_dummy)
-        @test_call material_model(mat, state, F_stretch, C_dummy, V0_dummy, m_dummy, dt_dummy)
+        @test_opt material_model(mat, state, F_stretch, C_dummy, V0_dummy, m_dummy, dt_dummy, dx_dummy)
+        @test_call material_model(mat, state, F_stretch, C_dummy, V0_dummy, m_dummy, dt_dummy, dx_dummy)
         # ------------------
         
-        σ_stretch, _ = material_model(mat, state, F_stretch, C_dummy, V0_dummy, m_dummy, dt_dummy)
+        σ_stretch, _ = material_model(mat, state, F_stretch, C_dummy, V0_dummy, m_dummy, dt_dummy, dx_dummy)
         
         # --- Manual precalculation ---
         # b = F * F' = diag([4.0, 1.0, 1.0])
