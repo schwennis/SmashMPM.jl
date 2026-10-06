@@ -38,13 +38,14 @@ end
     F = one(SMatrix{3,3,T,9})
     C = nothing # Placeholder
     dt = 1e-4
+    dx = 1.0
 
     # Functional correctness & type inference
-    @test_nowarn material_model(mat, mat_state, F, C, vol, mass, dt)
-    σ, new_state = @inferred material_model(mat, mat_state, F, C, vol, mass, dt)
+    @test_nowarn material_model(mat, mat_state, F, C, vol, mass, dt, dx)
+    σ, new_state = @inferred material_model(mat, mat_state, F, C, vol, mass, dt, dx)
     @test σ isa SMatrix{3,3,T,9}
 
     # JET analysis: The material model must NOT contain dynamic dispatches or allocations
-    @test_call material_model(mat, mat_state, F, C, vol, mass, dt)
-    @test_opt material_model(mat, mat_state, F, C, vol, mass, dt)
+    @test_call material_model(mat, mat_state, F, C, vol, mass, dt, dx)
+    @test_opt material_model(mat, mat_state, F, C, vol, mass, dt, dx)
 end

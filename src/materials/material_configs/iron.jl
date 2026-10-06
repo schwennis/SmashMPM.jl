@@ -1,58 +1,50 @@
 """
-    Iron(::Type{T}=Float64; eos=:tillotson, strength=:elastic, damage=:none)
+    Iron(::Type{T}=Float64; eos=:tillotson, elasticity=:hypoelastic,
+         plasticity=NoPlasticity(), damage=NoDamage(), viscosity=NoViscosity())
 
-Creates an Iron material with the specified equation of state (EoS), strength model, and damage model (not implemented yet).
+Iron with selectable EoS and elasticity (symbols, parameters provided).
+Plasticity, damage, and artificial viscosity are passed as ready-made instances, e.g.
+`plasticity = J2Plasticity(; σ_y0 = 2.5e8, H = 1.0e9)`.
 """
 function Iron(
-    ::Type{T} = Float64; 
-    eos::Symbol = :tillotson, 
-    strength::Symbol = :elastic, 
-    # damage::Symbol = :none
+    ::Type{T} = Float64;
+    eos::Symbol = :tillotson,
+    elasticity::Symbol = :hypoelastic,
+    plasticity::AbstractPlasticity = NoPlasticity(),
+    damage::AbstractDamage = NoDamage(),
+    viscosity::AbstractArtificialViscosity = NoViscosity(),
 ) where {T<:AbstractFloat}
-    ρ_ref = T(7874.0)  # Reference density for iron in kg/m^3
 
-    # 1. Equation of State (EoS)
+    ρ_ref = T(7874.0)   # kg/m^3
+
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            ρ_ref,   # ρ0  (kg/m^3)
+            ρ_ref,       # ρ0  (kg/m^3)
             T(128.0e9),  # A   (Pa)
             T(105.0e9),  # B   (Pa)
             T(5.0),      # α
             T(5.0),      # β
             T(9.5e6),    # E0  (J/kg)
             T(2.4e6),    # Eiv (J/kg)
-            T(8.67e6),    # Ecv (J/kg)
+            T(8.67e6),   # Ecv (J/kg)
             T(0.5),      # a
-            T(0.15)      # b
+            T(0.15),     # b
         )
     elseif eos === :murnaghan
-        MurnaghanEOS{T}(
-            ρ_ref,   # ρ0  (kg/m^3)
-            T(113.5e9),  # K0  (Pa)
-            T(5.32),     # n
-            T(0.9)       # η_limit (relative compression)
-        )
+        MurnaghanEOS{T}(ρ_ref, T(113.5e9), T(5.32), T(0.9))
     else
         error("Unknown EoS for iron: :$eos")
     end
 
-    # strength model 
-    strength_inst = if strength === :hyperelastic
-        HyperElasticStrengthModel{T}(T(105e9)) # μ = 105 GPa
-    elseif strength === :hypoelastic
-        HypoElasticStrengthModel{T}(T(105e9)) # μ = 105 GPa
+    μ = T(105e9)
+    el_inst = if elasticity === :hyperelastic
+        HyperElasticity{T}(μ)
+    elseif elasticity === :hypoelastic
+        HypoElasticity{T}(μ)
     else
-        error("Unknown strength model for iron: :$strength")
+        error("Unknown elasticity model for iron: :$elasticity")
     end
 
-    # # damage model
-    # damage_inst = if damage === :none
-    #     NoDamageModel()
-    # # elseif damage === :johnson_cook_damage
-    # #     JohnsonCookDamage{T}(...)
-    # else
-    #     error("Unknown damage model for iron: :$damage")
-    # end
-
-    return SolidMaterial(eos_inst, strength_inst, ρ_ref)  # ρ = 7874.0 kg/m^3
+    return SolidMaterial(; eos = eos_inst, elasticity = el_inst,
+                         plasticity, damage, viscosity, ρ0 = ρ_ref)
 end

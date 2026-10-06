@@ -1,110 +1,316 @@
 # ---------------------------------------------------------------------------- #
-#                                Abstract Types                                #
+#                            Modular Solid Material                            #
 # ---------------------------------------------------------------------------- #
-abstract type AbstractMaterial end
-abstract type AbstractMaterialState end
+#
+# Here, the material model consists of a set of modular components:
+#   Component       Type                        
+#   EOS             ::AbstractEquationOfState   
+#   Elasticity      ::AbstractElasticity        
+#   Plasticity      ::AbstractPlasticity        
+#   Damage          ::AbstractDamage            
+#   Viscosity       ::AbstractViscosity
+#
+# The material model does the following steps every time step, using the follwing structs
+#   0. material_model call with signature
+#       mat::SolidMaterial, st::SolidMaterialState, F, L, V0, m, dt
+#
+#   1. Kinematics           kin = Kinematics(F, L, V0, m, dt)
+#   2. Thermodynamics       th = thermo(eos, eos_state, e)
+#   3. Elastic Predictor    s_tr, el_tr, G = elastic_trial(elasticity, elastic_state, kin)
+#   4. Plastic Corrector    s, pl = return_map(plasticity, plastic_state, s_tr, G, th, kin)
+#                           el = consistent_elastic_state(elasticity, el_tr, s, kin)
+#   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin)
+#                           s = degradation(damage, dm) * s
+#   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
+#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D))
+#   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)
+#   9. Assembly of σ        σ = s - (p + q) * I
+#
+#
+# This is done so new models can be implemented via the functions concerning its slots.
+# Coupling is done via accessors to prevent crashes due to different implementations of variables:
+#   - pressure(eos_state)
+#   - equivalent_plastic_strain(plastic_state)
+#   - damage_variable(damage_state)
+#   - thermo(eos, st, e)
+# ---------------------------------------------------------------------------- #
 
-# Equation of State
+# Abstract Types
 abstract type AbstractEquationOfState end
 abstract type AbstractEoSState end
-init_eos_state(eos::AbstractEquationOfState) = error("init_eos_state not implemented for $(typeof(eos))")
 
-"""
-Computes the equation-of-state values (in eos_state) and sound speed.
-"""
-function update_eos(eos::AbstractEquationOfState, eos_state::AbstractEoSState, ρ, stress_work, dt)
-    error("update_eos not implemented for $(typeof(eos))")
-end
+abstract type AbstractElasticity end
 
-include("eos/tillotson_eos.jl") # Tillotson EoS implementation
-include("eos/murnaghan_eos.jl") # Murnaghan EoS implementation
+abstract type AbstractPlasticity end
 
-# Strength Model
-abstract type AbstractStrengthModel end
-abstract type AbstractStrengthModelState end
-init_strength_state(sm::AbstractStrengthModel) = error("init_strength_state not implemented for $(typeof(sm))")
+abstract type AbstractDamage end
+
+abstract type AbstractArtificialViscosity end
 
 
-function strength_model(strength_model::AbstractStrengthModel, strength_state::AbstractStrengthModelState, ρ, F, D_dev, W , dt)
-    error("strength_model not implemented for $(typeof(strength_model))")
-end
+# Empty Singleton stateless models
+struct NoState end
 
-include("strength_models/hypoelastic_strength.jl")  # hypoeastic strength model implementation
-include("strength_models/hyperelastic_strength.jl") # hyperelastic strength model implementation
 
 
 # ---------------------------------------------------------------------------- #
-#                                Composite Types                               #
+#                                  Kinematics                                  #
 # ---------------------------------------------------------------------------- #
-@kwdef struct SolidMaterial{T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel} <: AbstractMaterial
+struct Kinematics{T}
+    F::SMatrix{3, 3, T, 9}
+    C::SMatrix{3, 3, T, 9}
+    V0::T
+    m::T
+    dt::T
+    dx::T
+end
+
+
+# ---------------------------------------------------------------------------- #
+#                           Interfaces and fallbacks                           #
+# ---------------------------------------------------------------------------- #
+# "not implemented" fallback for unimplemented functions
+_not_implemented(f::Symbol, x) = error("$(f) is not implemented for $(typeof(x))")
+
+# State initialisation ------------------------------------------------------- #
+"""
+    init_state(model_component)
+
+Initialize the state of a material component.
+
+# Arguments
+- `model_component`: The material component for which to initialize the state.
+
+# Returns
+- The initialized state of the material component.
+"""
+@inline init_state(model_component) = _not_implemented(:init_state, model_component)
+
+
+# Equation of State ----------------------------------------------------------- #
+"""
+    update_eos(eos::AbstractEquationOfState, eos_state::AbstractEoSState, ρ, e) -> (eos_state_new, c_bulk)
+"""
+@inline update_eos(eos::AbstractEquationOfState, eos_state::AbstractEoSState, ρ, e) = _not_implemented(:update_eos, eos)
+
+"""
+    reference_soundspeed(eos::AbstractEquationOfState) -> c_bulk in reference configuration
+"""
+@inline reference_soundspeed(eos::AbstractEquationOfState) = _not_implemented(:reference_soundspeed, eos)
+
+"""
+    pressure(eos_state::AbstractEoSState) -> p
+Overwrite this function if the eos state has no field `p`
+"""
+@inline pressure(eos_state::AbstractEoSState) = eos_state.p
+
+"""
+    thermo(eos::AbstractEquationOfState, eos_state::AbstractEoSState, e) -> (p, T)
+Thermodynamics interface for EoS. If EoS has temparature, overwrite this function to return the temperature. 
+Otherwise, return zero.
+"""
+@inline thermo(::AbstractEquationOfState, eos_state::AbstractEoSState, e) = (p = pressure(eos_state), T = zero(e))
+
+
+# Elasticity --------------------------------------------------------------- #
+"""
+    elastic_trial(el::AbstractElasticity, el_state, kin::Kinematics) -> (s_tr, el_tr, G)
+Performs a trial update of the elastic state.
+Returns:
+- `s_tr`: trial stress
+- `el_tr`: trial elastic state
+- `G`: effective shear modulus for return mapping
+"""
+@inline elastic_trial(el::AbstractElasticity, el_state, kin::Kinematics) = _not_implemented(:elastic_trial, el)
+
+"""
+    consistent_elastic_state(el::AbstractElasticity, el_tr, s, kin::Kinematics) -> el_state
+Performs a consistent update of the elastic state after plastic correction.
+Returns:
+- `el_state`: the consistent elastic state.
+"""
+@inline consistent_elastic_state(el::AbstractElasticity, el_tr, s, kin::Kinematics) = _not_implemented(:consistent_elastic_state, el)
+
+"""
+    shear_modulus(el::AbstractElasticity) -> G0
+Returns:
+- `G0`: shear modulus in the reference configuration.
+"""
+@inline shear_modulus(el::AbstractElasticity) = _not_implemented(:shear_modulus, el)
+
+
+
+# Plasticity --------------------------------------------------------------- #
+"""
+    return_map(pl::AbstractPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) -> s, pl_state_new
+Performs the return mapping algorithm for plasticity.
+Returns:
+- `s`: the updated stress after plastic correction.
+- `pl_state_new`: the updated plastic state.
+"""
+@inline return_map(pl::AbstractPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) = _not_implemented(:return_map, pl)
+
+# State accessors for plasticity, false if not implemented
+@inline equivalent_plastic_strain(::NoState) = false
+@inline damage_variable(::NoState) = false
+
+
+# Damage --------------------------------------------------------------- #
+"""
+    update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics) -> damage_state_new
+"""
+@inline update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics) = _not_implemented(:update_damage, damage)
+
+"""
+    degradation(damage::AbstractDamage, damage_state) -> g ∈ [0,1]
+"""
+@inline degradation(damage::AbstractDamage, damage_state) = _not_implemented(:degradation, damage)
+
+"""
+    degrade_pressure(damage::AbstractDamage, damage_state, p) -> p_degraded (Default: p)
+"""
+@inline degrade_pressure(damage::AbstractDamage, damage_state, p) = p
+
+
+# Artificial Viscosity --------------------------------------------------------------- #
+"""
+    viscous_pressure(viscosity::AbstractArtificialViscosity, kin::Kinematics, c) -> q
+"""
+@inline viscous_pressure(viscosity::AbstractArtificialViscosity, kin::Kinematics, c) = _not_implemented(:viscous_pressure, viscosity)
+
+
+
+# ---------------------------------------------------------------------------- #
+#                                  Null models                                 #
+# ---------------------------------------------------------------------------- #
+struct NoPlasticity <: AbstractPlasticity end
+@inline init_state(::NoPlasticity) = NoState()
+@inline return_map(::NoPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) = (s_tr, pl_state)
+
+
+struct NoDamage <: AbstractDamage end
+@inline init_state(::NoDamage) = NoState()
+@inline update_damage(::NoDamage, damage_state, s, pl_state, thermo, kin::Kinematics) = damage_state
+@inline degradation(::NoDamage, damage_state) = true    # true acts like type neutral 1
+
+struct NoViscosity <: AbstractArtificialViscosity end
+@inline viscous_pressure(::NoViscosity, kin::Kinematics, c) = zero(c)
+
+
+
+# ---------------------------------------------------------------------------- #
+#                                Composite types                               #
+# ---------------------------------------------------------------------------- #
+@kwdef struct SolidMaterial{T,
+                            EoS<:AbstractEquationOfState,
+                            EL<:AbstractElasticity,
+                            PL<:AbstractPlasticity,
+                            DM<:AbstractDamage,
+                            AV<:AbstractArtificialViscosity} <: AbstractMaterial
     eos::EoS
-    strength_model::SM
-    ρ::T    # Reference density for Body creation
+    elasticity::EL
+    plasticity::PL
+    damage::DM
+    viscosity::AV
+    ρ0::T
 end
 
-@kwdef struct SolidMaterialState{T, EoSState<:AbstractEoSState, SMState<:AbstractStrengthModelState} <: AbstractMaterialState
+@kwdef struct SolidMaterialState{T,
+                            EoSState<:AbstractEoSState,
+                            ELState,
+                            PLState,
+                            DMState} <: AbstractMaterialState
     c::T
+    e::T
     eos_state::EoSState
-    strength_state::SMState
+    elastic_state::ELState
+    plastic_state::PLState
+    damage_state::DMState
 end
 
 
-function get_initial_material_state(material::SolidMaterial{T}) where {T}
-    # Initialize using model specific functions
-    eos_state, c0 = init_eos_state(material.eos)
-    strength_state = init_strength_state(material.strength_model)
-    
-    return SolidMaterialState(c0, eos_state, strength_state)
+@inline function get_initial_material_state(mat::SolidMaterial{T}) where {T}
+    c_b = reference_soundspeed(mat.eos)
+    G0  = shear_modulus(mat.elasticity)
+    c0  = sqrt(c_b^2 + 4G0 / (3mat.ρ0))
+    return SolidMaterialState(
+        c             = c0,
+        e             = zero(T),
+        eos_state     = init_state(mat.eos),
+        elastic_state = init_state(mat.elasticity),
+        plastic_state = init_state(mat.plasticity),
+        damage_state  = init_state(mat.damage),
+    )
 end
 
-
-function get_soundspeed(material::SolidMaterial, mat_state::SolidMaterialState)
-    return mat_state.c
-end
-
+@inline get_soundspeed(::SolidMaterial, mat_state::SolidMaterialState) = mat_state.c
 
 
 
 # ---------------------------------------------------------------------------- #
-#                         Material Model Implementation                        #
+#                         Material Model implementation                        #
 # ---------------------------------------------------------------------------- #
-function material_model(
-    material::SolidMaterial{T, EoS, SM}, 
-    mat_state::SolidMaterialState{T, EoSState, SMState}, 
-    F::SMatrix{3,3,T,9}, C::SMatrix{3,3,T,9}, V0::T, m::T, dt::T
-) where {T, EoS<:AbstractEquationOfState, SM<:AbstractStrengthModel, EoSState<:AbstractEoSState, SMState<:AbstractStrengthModelState}
-    # Kinematic part
-    J = det(F)
-    ρ = m / (J * V0)
+#   1. Kinematics           kin = Kinematics(F, C, V0, m, dt)
+#   2. Thermodynamics       th = thermo(eos, eos_state, e)
+#   3. Elastic Predictor    s_tr, el_tr, G = elastic_trial(elasticity, elastic_state, kin)
+#   4. Plastic Corrector    s, pl = return_map(plasticity, plastic_state, s_tr, G, th, kin)
+#                           el = consistent_elastic_state(elasticity, el_tr, s, kin)
+#   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin)
+#                           s = degradation(damage, dm) * s
+#   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
+#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D))
+#   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)
+#   9. Assembly of σ        σ = s - (p + q) * I
+@inline function material_model(mat::SolidMaterial, st::SolidMaterialState, F::SMatrix{3,3,T,9}, C::SMatrix{3,3,T,9}, V0::T, m::T, dt::T, dx::T) where T
+    # 1. Kinematics
+    kin = Kinematics(F, C, V0, m, dt, dx)
+    ρ   = kin.m / (det(kin.F) * kin.V0)
+    D   = (kin.C + kin.C') * T(0.5)
 
-    D = T(0.5) * (C + C')
-    W = T(0.5) * (C - C')
-    trD = tr(D)
-    D_dev = D - (trD / T(3)) * one(SMatrix{3,3,T,9})
+    # 2. Thermodynamics
+    th  = thermo(mat.eos, st.eos_state, st.e)
 
-    # Strength model update
-    s_new, strength_state_new, c_p, dev_work_rate = strength_model(material.strength_model, mat_state.strength_state, ρ, F, D_dev, W , dt)
+    # 3. Elastic Predictor
+    s_tr, el_tr, G = elastic_trial(mat.elasticity, st.elastic_state, kin)
 
-    # Stress work
-    p_old = mat_state.eos_state.p
-    stress_work = (-p_old * trD + dev_work_rate) / ρ
+    # 4. Plastic Corrector
+    s, pl_st       = return_map(mat.plasticity, st.plastic_state, s_tr, G, th, kin)
+    el_st          = consistent_elastic_state(mat.elasticity, el_tr, s, kin)
 
-    # EOS update
-    eos_state_new, c_eos = update_eos(material.eos, mat_state.eos_state, ρ, stress_work, dt)
+    # 5. Damage
+    dm_st = update_damage(mat.damage, st.damage_state, s, pl_st, th, kin)
+    g     = degradation(mat.damage, dm_st)
+    s     = g * s
 
-    # get wavespeed
-    c = sqrt(c_p^2 + c_eos^2)
+    # 6. Viscosity
+    q = viscous_pressure(mat.viscosity, kin, st.c)
 
-    # Assemble the Cauchy stress tensor
-    σ = s_new - eos_state_new.p * one(SMatrix{3,3,T,9})
+    # 7. Energy Update (generic)
+    e = st.e + dt / ρ * (dot(s, D) - (th.p + q) * tr(D))
 
-    # Construct new material state
-    mat_state_new = SolidMaterialState{T, EoSState, SMState}(c, eos_state_new, strength_state_new)
+    # 8. EoS
+    eos_st, c_b = update_eos(mat.eos, st.eos_state, ρ, e)
+    p = degrade_pressure(mat.damage, dm_st, pressure(eos_st))
 
-    return σ, mat_state_new
+    # Total sound speed
+    c = sqrt(c_b^2 + g * 4G / (3ρ))
+
+    # 9. Assembly of σ
+    σ = s - (p + q) * I
+
+    return σ, SolidMaterialState(c = c, e = e, eos_state = eos_st,
+                                 elastic_state = el_st, plastic_state = pl_st,
+                                 damage_state = dm_st)
 end
 
 
 
+# ---------------------------------------------------------------------------- #
+#                             Model Implementations                            #
+# ---------------------------------------------------------------------------- #
+include("eos/murnaghan_eos.jl")
+include("eos/tillotson_eos.jl")
 
+include("elasticity/hyperelasticity.jl")
+include("elasticity/hypoelasticity.jl")
 

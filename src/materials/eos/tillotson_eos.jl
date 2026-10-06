@@ -1,8 +1,6 @@
 # ---------------------------------------------------------------------------- #
 #                          Tillotson Equation of State                         #
 # ---------------------------------------------------------------------------- #
-
-# Struct Definition
 @kwdef struct TillotsonEOS{T} <: AbstractEquationOfState
     ρ0::T   # Reference density
     A::T    # Tillotson parameter A
@@ -18,35 +16,23 @@ end
 
 @kwdef struct TillotsonState{T} <: AbstractEoSState
     p::T    # Pressure
-    e::T    # Specific internal energy
 end
 
-function init_eos_state(eos::TillotsonEOS{T}) where {T}
-    # Start with p = 0, e =0
-    p0 = zero(T)
-    e0 = zero(T)
-    state = TillotsonState{T}(p0, e0)
-    
-    # Reference for Tillotson: c0 = sqrt(A / ρ0)
-    c0 = sqrt(eos.A / eos.ρ0)
-    
-    return state, c0
-end
 
+# Initialization and reference sound speed
+init_state(::TillotsonEOS{T}) where {T} = TillotsonState(zero(T))
+reference_soundspeed(eos::TillotsonEOS) = sqrt(eos.A / eos.ρ0)
 
 
 # ---------------------------------------------------------------------------- #
 #                           update_eos implementation                          #
 # ---------------------------------------------------------------------------- #
-function update_eos(eos::TillotsonEOS{T}, eos_state::TillotsonState{T}, ρ::T, stress_work::T, dt::T) where {T}
-    e_new = eos_state.e + stress_work * dt
-    p, c = tillotson_eos_and_soundspeed(eos, ρ, e_new)
-    return TillotsonState{T}(p, e_new), c
+@inline function update_eos(eos::TillotsonEOS{T}, ::TillotsonState{T}, ρ::T, e::T) where {T}
+    p, c = tillotson_eos_and_soundspeed(eos, ρ, e)
+    return TillotsonState(p), c
 end
 
-
-
-function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
+@inline function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     ρ0 = eos.ρ0
     Eiv = eos.Eiv
     Ecv = eos.Ecv
@@ -64,8 +50,8 @@ function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, ρ::T, e::T) where {
         pc, dp_dρ_c, dp_de_c = _tillotson_condensed(eos, ρ_safe, e_safe)
         pe, dp_dρ_e, dp_de_e = _tillotson_expanded(eos, ρ_safe, e_safe)
 
-        ΔE  = eos.Ecv - eos.Eiv
-        w_e = (e_safe - eos.Eiv) / ΔE
+        ΔE  = Ecv - Eiv
+        w_e = (e_safe - Eiv) / ΔE
         w_c = one(T) - w_e
 
         p     = w_e * pe + w_c * pc
@@ -73,23 +59,15 @@ function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, ρ::T, e::T) where {
         dp_de = w_e * dp_de_e + w_c * dp_de_c + (pe - pc) / ΔE
     end
 
-    c_squared = dp_dρ + (p / ρ_safe^2) * dp_de
-    c_squared = max(c_squared, zero(T))
-    c = sqrt(c_squared)
-
-    return p, c
+    c_squared = max(dp_dρ + (p / ρ_safe^2) * dp_de, zero(T))
+    return p, sqrt(c_squared)
 end
-
-
 
 # ---------------------------------------------------------------------------- #
 #                                    Helpers                                   #
 # ---------------------------------------------------------------------------- #
-"""
-Compute the Tillotson omega function and its derivatives with respect to density and energy.
-"""
-function _tillotson_omega(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
-    b = eos.b
+@inline function _tillotson_omega(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
+    b  = eos.b
     E0 = eos.E0
     ρ0 = eos.ρ0
 
@@ -98,7 +76,7 @@ function _tillotson_omega(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     denom = one(T) + e / (E0 * η^2)
     ω = b / denom
 
-    ddenom_dρ = -T(2) * e / (E0 * η^3 * ρ0) 
+    ddenom_dρ = -T(2) * e / (E0 * η^3 * ρ0)
     dω_dρ = -b * ddenom_dρ / denom^2
 
     ddenom_de = one(T) / (E0 * η^2)
@@ -107,14 +85,11 @@ function _tillotson_omega(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     return ω, dω_dρ, dω_de
 end
 
-"""
-Compute the pressure and its derivatives for the Tillotson equation of state in the condensed regime.
-"""
-function _tillotson_condensed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
+@inline function _tillotson_condensed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     ρ0 = eos.ρ0
-    A = eos.A
-    B = eos.B
-    a = eos.a
+    A  = eos.A
+    B  = eos.B
+    a  = eos.a
 
     η = ρ / ρ0
     μ = η - one(T)
@@ -129,16 +104,12 @@ function _tillotson_condensed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     return p, dp_dρ, dp_de
 end
 
-
-"""
-Compute the pressure and its derivatives for the Tillotson equation of state in the expanded regime.
-"""
-function _tillotson_expanded(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
+@inline function _tillotson_expanded(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     ρ0 = eos.ρ0
-    A = eos.A
-    α = eos.α
-    β = eos.β
-    a = eos.a
+    A  = eos.A
+    α  = eos.α
+    β  = eos.β
+    a  = eos.a
 
     η = ρ / ρ0
     μ = η - one(T)
@@ -153,7 +124,6 @@ function _tillotson_expanded(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     exp_term_2 = exp(-α * ν^2)
 
     P_star = ω * ρ * e + A * μ * exp_term_1
-
     p = a * ρ * e + P_star * exp_term_2
 
     dP_star_dρ = e * (ω + ρ * dω_dρ) + A * exp_term_1 * (dμ_dρ - β * μ * dν_dρ)
