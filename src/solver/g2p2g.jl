@@ -60,7 +60,7 @@
 
     F_new = (one(SMatrix{3, 3, T, 9}) + C * dt) * F_old
     particles.F[p_idx] = F_new
-    σ, mat_state_new = material_model(material, mat_state, F_new, C, V0, mass, dt)
+    σ, mat_state_new = material_model(material, mat_state, F_new, C, V0, mass, dt, 1/inv_dx)
     particles.mat_state[p_idx] = mat_state_new
     J = det(F_new)
     vol_new = J * V0

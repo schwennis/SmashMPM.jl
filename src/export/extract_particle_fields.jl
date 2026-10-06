@@ -2,14 +2,24 @@
 #               Particle data (incl. material state) for HDF5 export           #
 # ---------------------------------------------------------------------------- #
 # One small method per state type, no reflection / metaprogramming.
-# A new EoS or strength model needs ONE extra line in _eos_fields /
-# _strength_fields below (unknown types are skipped with a warning).
+# Scalars (p, e, eps_p, damage) are read through the accessor functions of the
+# material pipeline (pressure, equivalent_plastic_strain, damage_variable), so a
+# new EoS, plasticity or damage model needs NO extra line here.
+# Only tensor-valued elastic states need ONE extra method in _elastic_fields below
+# (unknown types are skipped with a warning).
 #
 # Datasets (names are paths inside the HDF5 file):
-#   mat_state/c                  (N,)
-#   mat_state/eos_state/p, e     (N,)     (Murnaghan: only p)
-#   mat_state/strength_state/b   (N,9)    (HyperElastic)
-#   mat_state/strength_state/s   (N,9)    (HypoElastic)
+#   mat_state/c                       (N,)    longitudinal wave speed
+#   mat_state/e                       (N,)    specific internal energy
+#   mat_state/eps_p                   (N,)    equivalent plastic strain (0 without plasticity)
+#   mat_state/damage                  (N,)    damage variable D (0 without damage)
+#   mat_state/eos_state/p             (N,)    pressure
+#   mat_state/elastic_state/s         (N,9)   deviatoric stress    (HypoElasticity)
+#   mat_state/elastic_state/bbar_e    (N,9)   elastic isochoric left Cauchy-Green b̄ₑ (HyperElasticity)
+#
+# Changes compared to the old SolidMaterial export:
+#   - eos_state/e (Tillotson) is now mat_state/e and exists for every EoS
+#   - strength_state/{s,b} is now elastic_state/{s,bbar_e}
 #
 # (F and affine are written by the exporter itself.)
 # 3x3 matrices are stored flat and row-major, like F and affine:
@@ -30,42 +40,43 @@ end
 # ---------------------------------------------------------------------------- #
 #                         Fields per state type (dispatch)                     #
 # ---------------------------------------------------------------------------- #
-# --- equation of state ------------------------------------------------------ #
-_eos_fields(s::AbstractVector{<:MurnaghanState}) = Dict{String, Array}(
-    "p" => [x.p for x in s],
-)
-_eos_fields(s::AbstractVector{<:TillotsonState}) = Dict{String, Array}(
-    "p" => [x.p for x in s],
-    "e" => [x.e for x in s],
+# --- equation of state (generic via accessor) ------------------------------- #
+_eos_fields(s::AbstractVector{<:AbstractEoSState}) = Dict{String, Array}(
+    "p" => [pressure(x) for x in s],
 )
 
-# --- strength model --------------------------------------------------------- #
-_strength_fields(s::AbstractVector{<:HyperElasticStrengthModelState}) = Dict{String, Array}(
-    "b" => _matrices([x.b for x in s]),
-)
-_strength_fields(s::AbstractVector{<:HypoElasticStrengthModelState}) = Dict{String, Array}(
+# --- elasticity ------------------------------------------------------------- #
+_elastic_fields(s::AbstractVector{<:HypoElasticState}) = Dict{String, Array}(
     "s" => _matrices([x.s for x in s]),
+)
+_elastic_fields(s::AbstractVector{<:HyperElasticState}) = Dict{String, Array}(
+    "bbar_e" => _matrices([x.bbar_e for x in s]),
 )
 
 # --- material state --------------------------------------------------------- #
 _state_fields(::AbstractVector{NoMaterialState}) = Dict{String, Array}()
 
-function _state_fields(ms::AbstractVector{<:SolidMaterialState})
-    fields = Dict{String, Array}("mat_state/c" => [s.c for s in ms])
+function _state_fields(ms::AbstractVector{<:SolidMaterialState{T}}) where {T}
+    fields = Dict{String, Array}(
+        "mat_state/c"      => [s.c for s in ms],
+        "mat_state/e"      => [s.e for s in ms],
+        # accessors return `false` for NoState → converted to 0
+        "mat_state/eps_p"  => [T(equivalent_plastic_strain(s.plastic_state)) for s in ms],
+        "mat_state/damage" => [T(max(damage_variable(s.plastic_state),
+                                     damage_variable(s.damage_state))) for s in ms],
+    )
     for (name, arr) in _eos_fields([s.eos_state for s in ms])
         fields["mat_state/eos_state/" * name] = arr
     end
-    for (name, arr) in _strength_fields([s.strength_state for s in ms])
-        fields["mat_state/strength_state/" * name] = arr
+    for (name, arr) in _elastic_fields([s.elastic_state for s in ms])
+        fields["mat_state/elastic_state/" * name] = arr
     end
     return fields
 end
 
 # Fallback: do not crash the simulation because of an unknown state type
-_eos_fields(s::AbstractVector) =
-    (@warn "HDF5 export: no fields defined for EoS state $(eltype(s))" maxlog=1; Dict{String, Array}())
-_strength_fields(s::AbstractVector) =
-    (@warn "HDF5 export: no fields defined for strength state $(eltype(s))" maxlog=1; Dict{String, Array}())
+_elastic_fields(s::AbstractVector) =
+    (@warn "HDF5 export: no fields defined for elastic state $(eltype(s))" maxlog=1; Dict{String, Array}())
 _state_fields(s::AbstractVector) =
     (@warn "HDF5 export: no fields defined for material state $(eltype(s))" maxlog=1; Dict{String, Array}())
 
@@ -80,7 +91,7 @@ _fill_value(::Type{E}) where {E} = E <: AbstractFloat ? E(NaN) : zero(E)
 """
 Merge the fields of all particle sets into arrays over all `total` particles, in
 the same order as the flat datasets position/mass/... Sets that do not own a
-field (e.g. NeoHookean has no eos_state, Murnaghan has no `e`) get NaN.
+field (e.g. NeoHookean has no eos_state, a hypoelastic set has no `bbar_e`) get NaN.
 """
 function _gather_particle_fields(particle_sets, total::Int)
     per_set = [_set_fields(ps.particles) for ps in particle_sets]

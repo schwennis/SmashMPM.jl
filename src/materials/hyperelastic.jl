@@ -91,7 +91,7 @@ function get_initial_material_state(::NeoHookean)
 end
 
 
-@inline function material_model(material::NeoHookean{T}, mat_state::NoMaterialState, F, C, V0, m, dt) where {T}
+@inline function material_model(material::NeoHookean{T}, mat_state::NoMaterialState, F, C, V0, m, dt, dx) where {T}
     μ = material.μ
     λ = material.λ
 
