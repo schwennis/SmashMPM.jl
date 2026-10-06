@@ -6,6 +6,7 @@ using LinearAlgebra
 
 using KernelAbstractions
 using Adapt
+using Atomix
 using Atomix: @atomic
 
 using JLD2

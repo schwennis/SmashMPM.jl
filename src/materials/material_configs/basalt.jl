@@ -19,7 +19,7 @@ function Basalt(
 
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            ρ_ref,       # ρ0  (kg/m^3)
+            ρ_ref,       # ρ  (kg/m^3)
             T(26.7e9),   # A   (Pa)
             T(26.7e9),   # B   (Pa)
             T(5.0),      # α
@@ -46,5 +46,5 @@ function Basalt(
     end
 
     return SolidMaterial(; eos = eos_inst, elasticity = el_inst,
-                         plasticity, damage, viscosity, ρ0 = ρ_ref)
+                         plasticity, damage, viscosity, ρ = ρ_ref)
 end

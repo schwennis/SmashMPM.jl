@@ -1,11 +1,11 @@
 @testset "Constructor & Initial State" begin
-	eos = MurnaghanEOS(ρ0=1.0, K0=100.0, n=2.0, η_limit=0.9)
+	eos = MurnaghanEOS(ρ=1.0, K0=100.0, n=2.0, η_limit=0.9)
 	elasticity = SmashMPM.HypoElasticity(μ=30.0)
 	material = SmashMPM.SolidMaterial(eos, elasticity, SmashMPM.NoPlasticity(), SmashMPM.NoDamage(), SmashMPM.NoViscosity(), 1.0)
 
 	@test material.eos === eos
 	@test material.elasticity === elasticity
-	@test material.ρ0 == 1.0
+	@test material.ρ == 1.0
 
 	state = get_initial_material_state(material)
 
@@ -18,7 +18,7 @@
 end
 
 @testset "Material Model" begin
-	eos = MurnaghanEOS(ρ0=1.0, K0=100.0, n=2.0, η_limit=0.9)
+	eos = MurnaghanEOS(ρ=1.0, K0=100.0, n=2.0, η_limit=0.9)
 	elasticity = SmashMPM.HypoElasticity(μ=30.0)
 	material = SmashMPM.SolidMaterial(eos, elasticity, SmashMPM.NoPlasticity(), SmashMPM.NoDamage(), SmashMPM.NoViscosity(), 1.0)
 	state = get_initial_material_state(material)

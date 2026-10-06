@@ -212,7 +212,7 @@ struct NoViscosity <: AbstractArtificialViscosity end
     plasticity::PL
     damage::DM
     viscosity::AV
-    ρ0::T
+    ρ::T
 end
 
 @kwdef struct SolidMaterialState{T,
@@ -232,7 +232,7 @@ end
 @inline function get_initial_material_state(mat::SolidMaterial{T}) where {T}
     c_b = reference_soundspeed(mat.eos)
     G0  = shear_modulus(mat.elasticity)
-    c0  = sqrt(c_b^2 + 4G0 / (3mat.ρ0))
+    c0  = sqrt(c_b^2 + 4G0 / (3mat.ρ))
     return SolidMaterialState(
         c             = c0,
         e             = zero(T),

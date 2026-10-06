@@ -2,7 +2,7 @@
 #                          Tillotson Equation of State                         #
 # ---------------------------------------------------------------------------- #
 @kwdef struct TillotsonEOS{T} <: AbstractEquationOfState
-    ρ0::T   # Reference density
+    ρ::T   # Reference density
     A::T    # Tillotson parameter A
     B::T    # Tillotson parameter B
     α::T    # Tillotson parameter α
@@ -21,7 +21,7 @@ end
 
 # Initialization and reference sound speed
 init_state(::TillotsonEOS{T}) where {T} = TillotsonState(zero(T))
-reference_soundspeed(eos::TillotsonEOS) = sqrt(eos.A / eos.ρ0)
+reference_soundspeed(eos::TillotsonEOS) = sqrt(eos.A / eos.ρ)
 
 
 # ---------------------------------------------------------------------------- #
@@ -33,14 +33,14 @@ reference_soundspeed(eos::TillotsonEOS) = sqrt(eos.A / eos.ρ0)
 end
 
 @inline function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
-    ρ0 = eos.ρ0
+    ρ = eos.ρ
     Eiv = eos.Eiv
     Ecv = eos.Ecv
 
     ρ_safe = max(T(ρ), eps(T))
     e_safe = max(T(e), zero(T))
 
-    if ρ_safe >= ρ0
+    if ρ_safe >= ρ
         p, dp_dρ, dp_de = _tillotson_condensed(eos, ρ_safe, e_safe)
     elseif e_safe < Eiv
         p, dp_dρ, dp_de = _tillotson_condensed(eos, ρ_safe, e_safe)
@@ -69,14 +69,14 @@ end
 @inline function _tillotson_omega(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     b  = eos.b
     E0 = eos.E0
-    ρ0 = eos.ρ0
+    ρ = eos.ρ
 
-    η = ρ / ρ0
+    η = ρ / ρ
 
     denom = one(T) + e / (E0 * η^2)
     ω = b / denom
 
-    ddenom_dρ = -T(2) * e / (E0 * η^3 * ρ0)
+    ddenom_dρ = -T(2) * e / (E0 * η^3 * ρ)
     dω_dρ = -b * ddenom_dρ / denom^2
 
     ddenom_de = one(T) / (E0 * η^2)
@@ -86,39 +86,39 @@ end
 end
 
 @inline function _tillotson_condensed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
-    ρ0 = eos.ρ0
+    ρ = eos.ρ
     A  = eos.A
     B  = eos.B
     a  = eos.a
 
-    η = ρ / ρ0
+    η = ρ / ρ
     μ = η - one(T)
 
     ω, dω_dρ, dω_de = _tillotson_omega(eos, ρ, e)
 
     p = (a + ω) * ρ * e + A * μ + B * μ^2
 
-    dp_dρ = (a + ω) * e + ρ * e * dω_dρ + (A + T(2) * B * μ) / ρ0
+    dp_dρ = (a + ω) * e + ρ * e * dω_dρ + (A + T(2) * B * μ) / ρ
     dp_de = (a + ω) * ρ + ρ * e * dω_de
 
     return p, dp_dρ, dp_de
 end
 
 @inline function _tillotson_expanded(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
-    ρ0 = eos.ρ0
+    ρ = eos.ρ
     A  = eos.A
     α  = eos.α
     β  = eos.β
     a  = eos.a
 
-    η = ρ / ρ0
+    η = ρ / ρ
     μ = η - one(T)
-    ν = ρ0 / ρ - one(T)
+    ν = ρ / ρ - one(T)
 
     ω, dω_dρ, dω_de = _tillotson_omega(eos, ρ, e)
 
-    dν_dρ = -ρ0 / ρ^2
-    dμ_dρ = one(T) / ρ0
+    dν_dρ = -ρ / ρ^2
+    dμ_dρ = one(T) / ρ
 
     exp_term_1 = exp(-β * ν)
     exp_term_2 = exp(-α * ν^2)
