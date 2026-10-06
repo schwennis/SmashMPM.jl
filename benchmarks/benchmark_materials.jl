@@ -1,34 +1,42 @@
 using BenchmarkTools
-using InteractiveUtils
-using Profile
-using PProf
 using StaticArrays
 
 include("../src/SmashMPM.jl")
 using .SmashMPM
 
-mat = NeoHookean(λ=10.0, μ=5.0, ρ=1.0)
-state = get_initial_material_state(mat)
+F = @SMatrix [1.05 0.02 0.00;
+			  0.00 0.98 0.01;
+			  0.00 0.00 1.02]
+C = @SMatrix [0.10 0.02 0.00;
+			  0.00 -0.05 0.01;
+			  0.00 0.00 0.02]
+V0 = 1.0
+m = 7874.0
+dt = 1.0e-6
 
-# Dummy values for parameters currently ignored by your NeoHookean model
-C_dummy = one(SMatrix{3,3,Float64,9})
-V0_dummy = 1.0
-m_dummy = 1.0
-dt_dummy = 0.1
-F_id = one(SMatrix{3,3,Float64,9})
+neohookean = NeoHookean(E=200.0e9, ν=0.3, ρ=7874.0)
+neohookean_state = get_initial_material_state(neohookean)
 
-# Precompile material_model
-material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy)
+iron_tillotson = Iron(Float64, eos=:tillotson, strength=:hyperelastic)
+iron_tillotson_state = get_initial_material_state(iron_tillotson)
 
-# View code stability
-# @code_warntype material_model(mat, state, F_id, C_dummy, V0_dummy, m_dummy, dt_dummy)
+iron_murnaghan = Iron(Float64, eos=:murnaghan, strength=:hyperelastic)
+iron_murnaghan_state = get_initial_material_state(iron_murnaghan)
 
+println("Benchmarking NeoHookean...")
+material_model(neohookean, neohookean_state, F, C, V0, m, dt)
+display(@benchmark material_model(
+	$neohookean, $neohookean_state, $F, $C, $V0, $m, $dt
+))
 
+println("Benchmarking Iron with Tillotson EoS...")
+material_model(iron_tillotson, iron_tillotson_state, F, C, V0, m, dt)
+display(@benchmark material_model(
+	$iron_tillotson, $iron_tillotson_state, $F, $C, $V0, $m, $dt
+))
 
-println("Benchmarking material_model for NeoHookean material...")
-display(@benchmark material_model($mat, $state, $F_id, $C_dummy, $V0_dummy, $m_dummy, $dt_dummy))
-
-Profile.clear_malloc_data()
-for i in 1:1000
-    material_model(mat, state, F_id, nothing, 1.0, 1.0, 0.1)
-end
+println("Benchmarking Iron with Murnaghan EoS...")
+material_model(iron_murnaghan, iron_murnaghan_state, F, C, V0, m, dt)
+display(@benchmark material_model(
+	$iron_murnaghan, $iron_murnaghan_state, $F, $C, $V0, $m, $dt
+))
