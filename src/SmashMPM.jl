@@ -25,6 +25,7 @@ export MurnaghanEOS, MurnaghanState                                 # Murnaghan 
 export TillotsonEOS, TillotsonState                                 # Tillotson EOS
 export HypoElasticStrengthModel, HypoElasticStrengthModelState      # Hypoelastic strength model
 export HyperElasticStrengthModel, HyperElasticStrengthModelState    # Hyperelastic strength model
+export BulkViscosity
 # Material configs
 export Basalt, Iron
 
