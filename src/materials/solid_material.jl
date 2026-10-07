@@ -314,3 +314,4 @@ include("eos/tillotson_eos.jl")
 include("elasticity/hyperelasticity.jl")
 include("elasticity/hypoelasticity.jl")
 
+include("viscosity/bulk_viscosity.jl")
