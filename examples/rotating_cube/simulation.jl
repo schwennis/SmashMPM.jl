@@ -58,7 +58,7 @@ function main(backend=BACKEND, T=T)
     println("Creating cube body...")
     body_cube = build_cube(T)
 
-        exporter = HDF5Exporter(
+    exporter = HDF5Exporter(
         output_dir="output", 
         filename_prefix="rotating_cube",
         write_xdmf=true,

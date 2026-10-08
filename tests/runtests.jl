@@ -37,4 +37,8 @@ using KernelAbstractions
     @testset "MPM Model Builder Pipeline" begin
         include("test_sim_builder.jl")
     end
+
+    @testset "Conservation Tests" begin
+        include("test_conservation/test_rotating_cube.jl")
+    end
 end
