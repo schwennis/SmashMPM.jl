@@ -32,7 +32,7 @@ const DX = T(0.05)
 const T_MAX = T(10.0)
 const PADDING = 8
 const PPC_1D = 2
-const CFL_NUMBER = T(0.4)
+const cfl_number = T(0.4)
 const DT_MAX = T(1e-3)
 
 const SAVE_TIME_INTERVAL = T(0.1)   # Save simulation state every .1 seconds
@@ -71,7 +71,7 @@ function main(backend=BACKEND, T=T)
         t_max=T_MAX,
         padding=PADDING,
         ppc_1d=PPC_1D,
-        CFL_number=CFL_NUMBER,
+        cfl_number=cfl_number,
         dt_max=DT_MAX,
         backend=BACKEND,
         export_time_interval=SAVE_TIME_INTERVAL,
@@ -83,7 +83,7 @@ function main(backend=BACKEND, T=T)
     model = build_mpm_model((body_cube,), sim_setup)
 
     N_particles = length(model.particle_sets[1].particles)
-    grid_dimensions = size(model.grid.state_old)
+    grid_dimensions = size(model.grid.state_read)
     println("Simulation setup complete. Number of particles: $N_particles, Grid dimensions: $grid_dimensions")
 
 

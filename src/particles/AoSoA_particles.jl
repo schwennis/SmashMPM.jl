@@ -29,7 +29,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         ids[i] = p.id
         pos_x[i] = p.pos[1]; pos_y[i] = p.pos[2]; pos_z[i] = p.pos[3]
         mass[i]   = p.mass
-        vol[i]    = p.initial_volume
+        vol[i]    = p.V0
         F[i]      = p.F
         mstate[i] = p.mat_state
     end
@@ -56,7 +56,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         id              = reshape(_to_backend(backend, ids), block_size, max_blocks),
         pos             = pos,
         mass            = reshape(_to_backend(backend, mass), block_size, max_blocks),
-        initial_volume  = reshape(_to_backend(backend, vol), block_size, max_blocks),
+        V0  = reshape(_to_backend(backend, vol), block_size, max_blocks),
         F               = reshape(_to_backend(backend, F), block_size, max_blocks),
         mat_state       = reshape(_to_backend(backend, mstate), block_size, max_blocks)
     ))

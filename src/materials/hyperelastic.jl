@@ -38,12 +38,12 @@ function LinearElastic(;E=nothing, ν=nothing, ρ=nothing, λ=nothing, μ=nothin
 end
 
 
-function get_initial_material_state(::LinearElastic)
+function initial_material_state(::LinearElastic)
     return NoMaterialState()
 end
 
 
-@inline function material_model(material::LinearElastic{T}, mat_state::NoMaterialState, F, C, V0, m, dt) where {T}
+@inline function material_model(material::LinearElastic{T}, mat_state::NoMaterialState, F, C, V0, m, dt, dx) where {T}
     μ = material.μ
     λ = material.λ
 
@@ -56,7 +56,7 @@ end
     return σ, mat_state
 end
 
-function get_soundspeed(material::LinearElastic{T}, mat_state::NoMaterialState) where {T}
+function soundspeed(material::LinearElastic{T}, mat_state::NoMaterialState) where {T}
     return material.c
 end
 
@@ -86,7 +86,7 @@ function NeoHookean(;E=nothing, ν=nothing, ρ=nothing, λ=nothing, μ=nothing)
     return NeoHookean{typeof(λ)}(μ, λ, ρ, c)
 end
 
-function get_initial_material_state(::NeoHookean)
+function initial_material_state(::NeoHookean)
     return NoMaterialState()
 end
 
@@ -104,6 +104,6 @@ end
     return σ, mat_state
 end
 
-function get_soundspeed(material::NeoHookean{T}, material_cache::NoMaterialState) where {T}
+function soundspeed(material::NeoHookean{T}, material_cache::NoMaterialState) where {T}
     return material.c
 end

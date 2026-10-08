@@ -6,7 +6,7 @@ struct Particle{T, MS<:AbstractMaterialState}
     pos::SVector{3, T}
 
     mass::T
-    initial_volume::T
+    V0::T
 
     F::SMatrix{3, 3, T, 9}
 
@@ -14,8 +14,8 @@ struct Particle{T, MS<:AbstractMaterialState}
 end
 
 
-function Particle(id::Int, position::SVector{3, T}, mass::T, initial_volume::T, mat_state::MS) where {T, MS<:AbstractMaterialState}
-    return Particle{T, MS}(UInt32(id), position, mass, initial_volume, one(SMatrix{3, 3, T, 9}), mat_state)
+function Particle(id::Int, position::SVector{3, T}, mass::T, V0::T, mat_state::MS) where {T, MS<:AbstractMaterialState}
+    return Particle{T, MS}(UInt32(id), position, mass, V0, one(SMatrix{3, 3, T, 9}), mat_state)
 end
 
 

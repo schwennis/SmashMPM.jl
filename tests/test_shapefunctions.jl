@@ -5,23 +5,23 @@
     origin = @SVector [0.0, 0.0, 0.0]
     padding = 0
 
-    @test SmashMPM.get_grid_position(pos_p, inv_dx, origin) ≈ @SVector [1.0, 1.0, 1.0]
-    @test_opt SmashMPM.get_grid_position(pos_p, inv_dx, origin)
-    @test_call SmashMPM.get_grid_position(pos_p, inv_dx, origin)
+    @test SmashMPM.grid_position(pos_p, inv_dx, origin) ≈ @SVector [1.0, 1.0, 1.0]
+    @test_opt SmashMPM.grid_position(pos_p, inv_dx, origin)
+    @test_call SmashMPM.grid_position(pos_p, inv_dx, origin)
 
 
     # At [0.5,0.5,0.5] with 1/dx = 1, origin at [0,0,0], we should get [1.5,1.5,1.5]
     pos_p = @SVector [0.5, 0.5, 0.5]
-    @test SmashMPM.get_grid_position(pos_p, inv_dx, origin) ≈ @SVector [1.5, 1.5, 1.5]
-    @test_opt SmashMPM.get_grid_position(pos_p, inv_dx, origin)
-    @test_call SmashMPM.get_grid_position(pos_p, inv_dx, origin)
+    @test SmashMPM.grid_position(pos_p, inv_dx, origin) ≈ @SVector [1.5, 1.5, 1.5]
+    @test_opt SmashMPM.grid_position(pos_p, inv_dx, origin)
+    @test_call SmashMPM.grid_position(pos_p, inv_dx, origin)
 
     # With origin at [-1,-1,-1], the same position should yield [2.5,2.5,2.5]
     padding = 1
     origin = @SVector [-1.0, -1.0, -1.0]
-    @test SmashMPM.get_grid_position(pos_p, inv_dx, origin) ≈ @SVector [2.5, 2.5, 2.5]
-    @test_opt SmashMPM.get_grid_position(pos_p, inv_dx, origin)
-    @test_call SmashMPM.get_grid_position(pos_p, inv_dx, origin)
+    @test SmashMPM.grid_position(pos_p, inv_dx, origin) ≈ @SVector [2.5, 2.5, 2.5]
+    @test_opt SmashMPM.grid_position(pos_p, inv_dx, origin)
+    @test_call SmashMPM.grid_position(pos_p, inv_dx, origin)
 end
 
 @testset "Quadratic Shape Functions" begin

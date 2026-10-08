@@ -6,7 +6,7 @@ mass = 2.5
 vol = 0.5
 
 mat = NeoHookean(E=210e9, ν=0.3, ρ=7850.0)
-mat_state = get_initial_material_state(mat)
+mat_state = initial_material_state(mat)
 
 @testset "Constructors & Type Inference" begin
     # Test particle creation and automatic identity matrix assignment for F

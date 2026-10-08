@@ -7,12 +7,12 @@
     # Test Float64
     setup_f64 = SimulationSetup(dx=Float64(0.1), t_max=Float64(1.0))
     @test setup_f64.dx === 0.1
-    @test typeof(setup_f64.CFL_number) == Float64
+    @test typeof(setup_f64.cfl_number) == Float64
     
     # Test Float32 (Wichtig für GPU Memory)
-    setup_f32 = SimulationSetup(dx=Float32(0.1), t_max=Float32(1.0), CFL_number=Float32(0.4))
+    setup_f32 = SimulationSetup(dx=Float32(0.1), t_max=Float32(1.0), cfl_number=Float32(0.4))
     @test setup_f32.dx === 0.1f0
-    @test typeof(setup_f32.CFL_number) == Float32
+    @test typeof(setup_f32.cfl_number) == Float32
 
     # Typstabilität des Konstruktors selbst prüfen
     @inferred SimulationSetup(dx=Float64(0.05), t_max=Float64(2.0))
@@ -71,7 +71,7 @@ end
         @test length(model.particle_sets) == 2
         
         # Prüfe ob das Grid erfolgreich alloziert wurde (Grid Mass > 0 durch initial_p2g!)
-        total_mass = sum(model.grid.state_old.mass)
+        total_mass = sum(model.grid.state_read.mass)
         @test total_mass > 0.0
     end
 

@@ -5,7 +5,7 @@
     vel = velocities[p_idx]
     mass = masses[p_idx]
 
-    grid_pos = get_grid_position(pos, inv_dx, origin)
+    grid_pos = grid_position(pos, inv_dx, origin)
     base_node = get_support_base(spline, grid_pos)
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
 
@@ -34,7 +34,7 @@
 end
 
 function initial_p2g!(grid, positions, velocities, affines, masses, soundspeeds, spline)
-    grid_old = grid.state_old
+    grid_old = grid.state_read
     origin = grid.origin
     inv_dx = grid.inv_dx
 

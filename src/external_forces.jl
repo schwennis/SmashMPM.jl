@@ -22,7 +22,7 @@ end
 end
 
 function apply_external_forces!(force::ConstantGravity, grid::DenseGrid{T, S}, dt::Real) where {T, S}
-    state = grid.state_new
+    state = grid.state_write
 
     # Skalare vorab berechnen, um Multiplikationen im GPU-Loop zu sparen
     gx_dt = T(force.g[1] * dt)
@@ -69,7 +69,7 @@ end
 end
 
 function apply_external_forces!(force::RadialInvSquareForceField, grid::DenseGrid{T, S}, dt::Real) where {T, S}
-    state = grid.state_new
+    state = grid.state_write
 
     backend = KernelAbstractions.get_backend(state.mass)
     kernel = radial_inv_square_force_kernel!(backend)
@@ -111,7 +111,7 @@ end
 end
 
 function apply_external_forces!(force::VectorFieldForce, grid::DenseGrid{T, S}, dt::Real) where {T, S}
-    state = grid.state_new
+    state = grid.state_write
     force_field = force.force_field
 
     @assert size(force_field) == size(state.mass) "Force field dimensions must match grid dimensions."

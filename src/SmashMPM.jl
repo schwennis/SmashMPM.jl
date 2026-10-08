@@ -17,7 +17,7 @@ include("helpers.jl")
 
 include("materials.jl")
 export AbstractMaterial, AbstractMaterialState, NoMaterialState     # Abstract types
-export material_model, get_soundspeed, get_initial_material_state   # Material model interface
+export material_model, soundspeed, initial_material_state   # Material model interface
 export NeoHookean, LinearElastic                                    # hyperelastic materials
 export NoMaterialModel                                              # Debugging / Fallback
 export SolidMaterial, SolidMaterialState                            # Solid materials
@@ -44,7 +44,7 @@ export AbstractGrid, DenseGrid, GridNode
 export grid_reset!
 
 include("boundary_conditions.jl")
-export AbstractBoundaryCondition, NoBoundaryCondition, NoSlipBoundary
+export AbstractBoundaryCondition, NullBoundaryCondition, NoSlipBoundary
 export apply_boundary_condition!
 
 include("external_forces.jl")

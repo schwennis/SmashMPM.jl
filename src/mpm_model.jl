@@ -10,7 +10,7 @@
 
     particle_sets::MGT
     grid::GT
-    boundary_condition::BC = NoBoundaryCondition()
+    boundary_condition::BC = NullBoundaryCondition()
     external_force::EF = NoExternalForce()
     shapefunction::SF = QuadraticSpline()
 
@@ -19,12 +19,12 @@
     t::T = 0.0
     t_max::T
     dt_max::T = 0.01
-    CFL_number::T = 0.4
+    cfl_number::T = 0.4
 end
 
 
 
-function model_to_CPU(model::MPMModel)
+function model_to_cpu(model::MPMModel)
     if model.backend isa CPU
         return model
     end
@@ -37,8 +37,8 @@ function model_to_CPU(model::MPMModel)
         )
     end
 
-    old_state_cpu = adapt(Array, model.grid.state_old)
-    new_state_cpu = adapt(Array, model.grid.state_new)
+    old_state_cpu = adapt(Array, model.grid.state_read)
+    new_state_cpu = adapt(Array, model.grid.state_write)
 
     cpu_grid = DenseGrid(
         old_state_cpu,
@@ -58,7 +58,7 @@ function model_to_CPU(model::MPMModel)
         model.t,
         model.t_max,
         model.dt_max,
-        model.CFL_number
+        model.cfl_number
     )
     return cpu_model
 end

@@ -16,10 +16,10 @@ function _to_cpu_particles(particles)
             y = Array(particles.pos.y),
             z = Array(particles.pos.z),
         )),
-        mass           = Array(particles.mass),
-        initial_volume = Array(particles.initial_volume),
-        F              = Array(particles.F),
-        mat_state      = Array(particles.mat_state),
+        mass            = Array(particles.mass),
+        V0              = Array(particles.V0),
+        F               = Array(particles.F),
+        mat_state       = Array(particles.mat_state),
     ))
 end
 
@@ -52,7 +52,7 @@ function write_output(exporter::JLD2Exporter, model::MPMModel, step::Int, time::
     padded_idx = Printf.@sprintf("%06d", step)
     output_file = joinpath(exporter.output_dir, "$(exporter.filename_prefix)$(padded_idx).jld2")
 
-    cpu_model = model_to_CPU(model)
+    cpu_model = model_to_cpu(model)
     jldsave(output_file; model = cpu_model)
     return output_file
 end
@@ -74,7 +74,7 @@ end
 function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::Real = model.t)
     mkpath(exporter.output_dir)
  
-    cpu_model = model_to_CPU(model)
+    cpu_model = model_to_cpu(model)
     T = eltype(cpu_model.grid.origin)
     padded_idx = Printf.@sprintf("%06d", step)
     h5_filename = "$(exporter.filename_prefix)$(padded_idx).h5"
@@ -122,7 +122,7 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
                 end
  
                 all_mass[range] .= p_set.particles.mass
-                all_vol[range]  .= p_set.particles.initial_volume
+                all_vol[range]  .= p_set.particles.V0
                 all_id[range]   .= set_idx
  
                 offset += N
@@ -156,7 +156,7 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
  
         # 2. Grid-Export
         if exporter.export_grid
-            grid_state = _to_cpu_grid_state(cpu_model.grid.state_old)
+            grid_state = _to_cpu_grid_state(cpu_model.grid.state_read)
             
             # Grid-Parameter ablegen
             file["grid/origin"] = [cpu_model.grid.origin[1], cpu_model.grid.origin[2], cpu_model.grid.origin[3]]
@@ -189,7 +189,7 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
         dx = 1.0
         
         if exporter.export_grid
-            grid_dims = size(cpu_model.grid.state_old.mass)
+            grid_dims = size(cpu_model.grid.state_read.mass)
             origin = cpu_model.grid.origin
             dx = 1.0 / cpu_model.grid.inv_dx
         end

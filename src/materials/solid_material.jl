@@ -12,9 +12,9 @@
 #
 # The material model does the following steps every time step, using the follwing structs
 #   0. material_model call with signature
-#       mat::SolidMaterial, st::SolidMaterialState, F, L, V0, m, dt
+#       mat::SolidMaterial, st::SolidMaterialState, F, C, V0, m, dt
 #
-#   1. Kinematics           kin = Kinematics(F, L, V0, m, dt)
+#   1. Kinematics           kin = Kinematics(F, C, V0, m, dt)
 #   2. Thermodynamics       th = thermo(eos, eos_state, e)
 #   3. Elastic Predictor    s_tr, el_tr, G = elastic_trial(elasticity, elastic_state, kin)
 #   4. Plastic Corrector    s, pl = return_map(plasticity, plastic_state, s_tr, G, th, kin)
@@ -49,7 +49,7 @@ abstract type AbstractArtificialViscosity end
 
 
 # Empty Singleton stateless models
-struct NoState end
+struct NullState end
 
 
 
@@ -89,7 +89,7 @@ Initialize the state of a material component.
 
 # Equation of State ----------------------------------------------------------- #
 """
-    update_eos(eos::AbstractEquationOfState, eos_state::AbstractEoSState, ρ, e) -> (eos_state_new, c_bulk)
+    update_eos(eos::AbstractEquationOfState, eos_state::AbstractEoSState, ρ, e) -> (eos_state_write, c_bulk)
 """
 @inline update_eos(eos::AbstractEquationOfState, eos_state::AbstractEoSState, ρ, e) = _not_implemented(:update_eos, eos)
 
@@ -142,22 +142,22 @@ Returns:
 
 # Plasticity --------------------------------------------------------------- #
 """
-    return_map(pl::AbstractPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) -> s, pl_state_new
+    return_map(pl::AbstractPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) -> s, pl_state_write
 Performs the return mapping algorithm for plasticity.
 Returns:
 - `s`: the updated stress after plastic correction.
-- `pl_state_new`: the updated plastic state.
+- `pl_state_write`: the updated plastic state.
 """
 @inline return_map(pl::AbstractPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) = _not_implemented(:return_map, pl)
 
 # State accessors for plasticity, false if not implemented
-@inline equivalent_plastic_strain(::NoState) = false
-@inline damage_variable(::NoState) = false
+@inline equivalent_plastic_strain(::NullState) = false
+@inline damage_variable(::NullState) = false
 
 
 # Damage --------------------------------------------------------------- #
 """
-    update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics) -> damage_state_new
+    update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics) -> damage_state_write
 """
 @inline update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics) = _not_implemented(:update_damage, damage)
 
@@ -183,13 +183,13 @@ Returns:
 # ---------------------------------------------------------------------------- #
 #                                  Null models                                 #
 # ---------------------------------------------------------------------------- #
-struct NoPlasticity <: AbstractPlasticity end
-@inline init_state(::NoPlasticity) = NoState()
-@inline return_map(::NoPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) = (s_tr, pl_state)
+struct NullPlasticity <: AbstractPlasticity end
+@inline init_state(::NullPlasticity) = NullState()
+@inline return_map(::NullPlasticity, pl_state, s_tr, G, thermo, kin::Kinematics) = (s_tr, pl_state)
 
 
 struct NoDamage <: AbstractDamage end
-@inline init_state(::NoDamage) = NoState()
+@inline init_state(::NoDamage) = NullState()
 @inline update_damage(::NoDamage, damage_state, s, pl_state, thermo, kin::Kinematics) = damage_state
 @inline degradation(::NoDamage, damage_state) = true    # true acts like type neutral 1
 
@@ -229,7 +229,7 @@ end
 end
 
 
-@inline function get_initial_material_state(mat::SolidMaterial{T}) where {T}
+@inline function initial_material_state(mat::SolidMaterial{T}) where {T}
     c_b = reference_soundspeed(mat.eos)
     G0  = shear_modulus(mat.elasticity)
     c0  = sqrt(c_b^2 + 4G0 / (3mat.ρ))
@@ -243,7 +243,7 @@ end
     )
 end
 
-@inline get_soundspeed(::SolidMaterial, mat_state::SolidMaterialState) = mat_state.c
+@inline soundspeed(::SolidMaterial, mat_state::SolidMaterialState) = mat_state.c
 
 
 

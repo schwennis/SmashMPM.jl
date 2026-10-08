@@ -3,9 +3,9 @@ abstract type AbstractBoundaryCondition end
 # ---------------------------------------------------------------------------- #
 #                             No Boundary Condition                            #
 # ---------------------------------------------------------------------------- #
-struct NoBoundaryCondition <: AbstractBoundaryCondition end
+struct NullBoundaryCondition <: AbstractBoundaryCondition end
 
-function apply_boundary_condition!(::NoBoundaryCondition, grid::DenseGrid{T, S}) where {T, S}
+function apply_boundary_condition!(::NullBoundaryCondition, grid::DenseGrid{T, S}) where {T, S}
     # No boundary condition to apply
     return nothing
 end
@@ -33,7 +33,7 @@ struct NoSlipBoundary <: AbstractBoundaryCondition end
 end
 
 function apply_boundary_condition!(::NoSlipBoundary, grid::DenseGrid{T, S}) where {T, S}
-    state = grid.state_new
+    state = grid.state_write
     dims = size(state.mass)
     padding = grid.padding
 

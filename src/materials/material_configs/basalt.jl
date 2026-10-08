@@ -1,6 +1,6 @@
 """
     Basalt(::Type{T}=Float64; eos=:tillotson, elasticity=:hypoelastic,
-           plasticity=NoPlasticity(), damage=NoDamage(), viscosity=NoViscosity())
+           plasticity=NullPlasticity(), damage=NoDamage(), viscosity=NoViscosity())
 
 Basalt with selectable EoS and elasticity (symbols, parameters provided).
 Plasticity, damage, and artificial viscosity are passed as ready-made instances, e.g.
@@ -10,7 +10,7 @@ function Basalt(
     ::Type{T} = Float64;
     eos::Symbol = :tillotson,
     elasticity::Symbol = :hypoelastic,
-    plasticity::AbstractPlasticity = NoPlasticity(),
+    plasticity::AbstractPlasticity = NullPlasticity(),
     damage::AbstractDamage = NoDamage(),
     viscosity::AbstractArtificialViscosity = NoViscosity(),
 ) where {T<:AbstractFloat}

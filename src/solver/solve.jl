@@ -1,7 +1,7 @@
 # using Printf
 
 function step!(model::MPMModel)
-    dt = courant_timestep(model)
+    dt = min(courant_timestep(model), model.t_max - model.t)
 
     # G2P2G step, reads from old grid and writes to new grid
     g2p2g!(model, dt)
@@ -24,7 +24,7 @@ end
 
 
 function solve!(model::MPMModel, setup::SimulationSetup)
-    T = eltype(model.grid.state_old.mass)
+    T = eltype(model.grid.state_read.mass)
 
     t_start = model.t
     

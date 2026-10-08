@@ -1,7 +1,7 @@
 @testset "SolidMaterial Pipeline Integration" begin
     # Test am Beispiel Basalt mit Tillotson EOS
     mat = Basalt(Float64, eos=:tillotson, elasticity=:hypoelastic, viscosity=BulkViscosity())
-    st0 = get_initial_material_state(mat)
+    st0 = initial_material_state(mat)
 
     V0 = 1.0e-6
     m  = mat.ρ * V0
