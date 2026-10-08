@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------- #
 struct NoMaterialModel<:AbstractMaterial end
 
-function get_initial_material_state(::NoMaterialModel)
+function initial_material_state(::NoMaterialModel)
     return NoMaterialState()
 end
 
@@ -14,6 +14,6 @@ end
     return σ, mat_state
 end
 
-function get_soundspeed(material::NoMaterialModel, mat_state::NoMaterialState)
-    return 0.0
+function soundspeed(material::NoMaterialModel, mat_state::NoMaterialState)
+    return false    # type neutral 0
 end

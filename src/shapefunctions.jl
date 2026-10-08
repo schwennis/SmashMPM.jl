@@ -3,7 +3,7 @@ abstract type AbstractShapeFunction end
 # ---------------------------------------------------------------------------- #
 #                                    Helpers                                   #
 # ---------------------------------------------------------------------------- #
-@inline function get_grid_position(pos_p::SVector{3, T}, inv_dx::T, origin::SVector{3, T}) where {T}
+@inline function grid_position(pos_p::SVector{3, T}, inv_dx::T, origin::SVector{3, T}) where {T}
     return (pos_p - origin) * inv_dx .+ one(T)  # +1 for 1-based indexing
 end
 

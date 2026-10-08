@@ -39,7 +39,7 @@ abstract type AbstractShape end
 end
 
 """
-    generate_particles(shape::Sphere{T}, spacing::T, ρ::T, velocity::SVector{3,T}, [ω_vector::SVector{3,T}]) -> (pos, vel, mass, vol)
+    generate_particles(shape::Sphere{T}, spacing::T, ρ::T, velocity::SVector{3,T}, [rot_vector::SVector{3,T}]) -> (pos, vel, mass, vol)
 
 Generate a perfectly symmetric grid of particles inside a sphere, centered at `shape.center`.
 
@@ -48,7 +48,7 @@ Generate a perfectly symmetric grid of particles inside a sphere, centered at `s
 - `spacing::T`: Initial particle spacing.
 - `ρ::T`: Material density.
 - `velocity::SVector{3,T}`: Linear velocity vector.
-- `ω_vector::SVector{3,T}`: Angular velocity vector for solid-body rotation (default: zeros).
+- `rot_vector::SVector{3,T}`: Angular velocity vector for solid-body rotation (default: zeros).
 
 # Returns
 A tuple of four aligned vectors:
@@ -57,7 +57,7 @@ A tuple of four aligned vectors:
 3. `masses`: Particle masses.
 4. `volumes`: Particle volumes.
 """
-function generate_particles(shape::Sphere{T}, spacing::T, ρ::T, velocity::SVector{3, T}, ω_vector::SVector{3, T}=zero(SVector{3, T})) where T
+function generate_particles(shape::Sphere{T}, spacing::T, ρ::T, velocity::SVector{3, T}, rot_vector::SVector{3, T}=zero(SVector{3, T})) where T
     R = shape.radius
     center = shape.center
     
@@ -89,7 +89,7 @@ function generate_particles(shape::Sphere{T}, spacing::T, ρ::T, velocity::SVect
 
                     push!(positions, pos + center)  # Shift to actual center
                     
-                    v_rot = !iszero(ω_vector) ? cross(ω_vector, pos) : zero(SVector{3, T})  # Calculate rotational velocity if ω_vector is not zero
+                    v_rot = !iszero(rot_vector) ? cross(rot_vector, pos) : zero(SVector{3, T})  # Calculate rotational velocity if rot_vector is not zero
                     push!(velocities, velocity + v_rot) # Add linear and rotational velocity
                 end
             end
@@ -126,7 +126,7 @@ function generate_particles(
     spacing::T, 
     ρ::T, 
     velocity::SVector{3, T}, 
-    ω_vector::SVector{3, T}=zero(SVector{3, T})
+    rot_vector::SVector{3, T}=zero(SVector{3, T})
 ) where T
 
     w = shape.width
@@ -170,9 +170,9 @@ function generate_particles(
                     rotated_pos = rot_matrix * local_pos
                     push!(positions, rotated_pos + center)
 
-                    v_rot = iszero(ω_vector) ?
+                    v_rot = iszero(rot_vector) ?
                         zero(SVector{3, T}) :
-                        cross(ω_vector, rotated_pos)
+                        cross(rot_vector, rotated_pos)
 
                     push!(velocities, velocity + v_rot)
                 end
@@ -202,7 +202,7 @@ end
 end
 
 """
-    generate_particles(shape::Cylinder{T}, spacing::T, ρ::T, velocity::SVector{3,T}, [ω_vector::SVector{3,T}]) -> (pos, vel, mass, vol)
+    generate_particles(shape::Cylinder{T}, spacing::T, ρ::T, velocity::SVector{3,T}, [rot_vector::SVector{3,T}]) -> (pos, vel, mass, vol)
 
 Generate a symmetric grid of particles inside a cylinder, centered at `shape.center`.
 
@@ -211,7 +211,7 @@ Generate a symmetric grid of particles inside a cylinder, centered at `shape.cen
 - `spacing::T`: Initial particle spacing.
 - `ρ::T`: Material density.
 - `velocity::SVector{3,T}`: Linear velocity vector.
-- `ω_vector::SVector{3,T}`: Angular velocity vector for solid-body rotation (default: zeros).
+- `rot_vector::SVector{3,T}`: Angular velocity vector for solid-body rotation (default: zeros).
 
 # Returns
 A tuple of four aligned vectors:
@@ -225,7 +225,7 @@ function generate_particles(
     spacing::T, 
     ρ::T, 
     velocity::SVector{3, T}, 
-    ω_vector::SVector{3, T}=zero(SVector{3, T})
+    rot_vector::SVector{3, T}=zero(SVector{3, T})
 ) where T
 
     R = shape.radius
@@ -265,7 +265,7 @@ function generate_particles(
                     pos = rot_matrix * pos  # Apply rotation
                     push!(positions, pos + center)  # Shift to actual center
                     
-                    v_rot = !iszero(ω_vector) ? cross(ω_vector, pos) : zero(SVector{3, T})  # Calculate rotational velocity if ω_vector is not zero
+                    v_rot = !iszero(rot_vector) ? cross(rot_vector, pos) : zero(SVector{3, T})  # Calculate rotational velocity if rot_vector is not zero
                     push!(velocities, velocity + v_rot) # Add linear and rotational velocity
                 end
             end
@@ -297,12 +297,12 @@ struct Body{S,M,T} <: AbstractBody
 end
 
 
-function affine_matrix(ω_vector::SVector{3, T}) where {T}
+function affine_matrix(rot_vector::SVector{3, T}) where {T}
     z = zero(T)
     return SMatrix{3, 3, T, 9}(
-         z,     ω_vector[3], -ω_vector[2],
-        -ω_vector[3],  z,     ω_vector[1],
-         ω_vector[2], -ω_vector[1],  z
+         z,     rot_vector[3], -rot_vector[2],
+        -rot_vector[3],  z,     rot_vector[1],
+         rot_vector[2], -rot_vector[1],  z
     )
 end
 

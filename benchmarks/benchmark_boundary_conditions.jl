@@ -20,8 +20,8 @@ grid = DenseGrid(dx, N, origin, padding)
 function populate_dummy_data!(grid, N)
     # Inside a function, variables are local and perfectly type-inferred
     for i in 1:N[1], j in 1:N[2], k in 1:N[3]
-        grid.state_old.mass[i, j, k] = rand()
-        grid.state_old.wave_speed[i, j, k] = rand() * 10
+        grid.state_read.mass[i, j, k] = rand()
+        grid.state_read.wave_speed[i, j, k] = rand() * 10
     end
 end
 

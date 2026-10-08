@@ -1,7 +1,7 @@
 # Interpolate nodal velocities to particles on the CPU
 using Base.Threads
 function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, spline::AbstractShapeFunction)
-    grid_state = grid.state_old
+    grid_state = grid.state_read
     T = eltype(grid_state.mass)
 
     num_particles = length(particle_set.particles.mass)
@@ -18,7 +18,7 @@ function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, splin
         vel = zero(SVector{3, T})
         B = zero(SMatrix{3, 3, T, 9})
 
-        grid_pos = get_grid_position(pos, inv_dx, origin)
+        grid_pos = grid_position(pos, inv_dx, origin)
         base_node = get_support_base(spline, grid_pos)
 
         for di in iterator_i, dj in iterator_j, dk in iterator_k

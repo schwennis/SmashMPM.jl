@@ -26,7 +26,7 @@ function create_model(n_target::Int, backend::Backend; T=Float32)
         t_max=T(1.0),
         padding=3,
         ppc_1d=ppc_1d,
-        CFL_number=T(0.4),
+        cfl_number=T(0.4),
         dt_max=T(1e-4),
         backend=backend
     )
@@ -70,7 +70,7 @@ function run_cpu_gpu_comparison(targets; n_steps=50)
         # Benchmark CPU
         model_cpu = create_model(target, CPU())
         np = length(model_cpu.particle_sets[1].particles.mass)
-        dims = size(model_cpu.grid.state_old.mass)
+        dims = size(model_cpu.grid.state_read.mass)
         dims_str = "$(dims[1])×$(dims[2])×$(dims[3])"
 
         ms_cpu = benchmark_solver(model_cpu, CPU(); n_steps=n_steps)

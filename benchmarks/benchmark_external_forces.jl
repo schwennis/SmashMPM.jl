@@ -21,8 +21,8 @@ function run_force_benchmarks(N_size)
     grid = DenseGrid(dx, N, origin, padding, Array)
     
     # Pre-fill with local scope to avoid global allocations
-    fill!(grid.state_new.mass, 2.0)
-    fill!(grid.state_new.momentum, zero(SVector{3, T}))
+    fill!(grid.state_write.mass, 2.0)
+    fill!(grid.state_write.momentum, zero(SVector{3, T}))
 
     # Instantiate Force structures
     no_force = NoExternalForce()

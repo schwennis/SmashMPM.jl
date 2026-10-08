@@ -11,8 +11,8 @@ grid = DenseGrid(dx, N, origin, padding, CPU())
 
 # Helper function to reset and prime the grid with mass
 function reset_grid_mass!(grid, initial_mass=2.0)
-    fill!(grid.state_new.mass, initial_mass)
-    fill!(grid.state_new.momentum, zero(SVector{3, T}))
+    fill!(grid.state_write.mass, initial_mass)
+    fill!(grid.state_write.momentum, zero(SVector{3, T}))
 end
 
 @testset "1. No External Force" begin
@@ -22,9 +22,9 @@ end
     @test_nowarn apply_external_forces!(force, grid, dt)
     
     # Verify momentum remains untouched (completely zero)
-    @test all(grid.state_new.momentum.x .== 0.0)
-    @test all(grid.state_new.momentum.y .== 0.0)
-    @test all(grid.state_new.momentum.z .== 0.0)
+    @test all(grid.state_write.momentum.x .== 0.0)
+    @test all(grid.state_write.momentum.y .== 0.0)
+    @test all(grid.state_write.momentum.z .== 0.0)
 
     # Performance assertions
     @test_call apply_external_forces!(force, grid, dt)
@@ -40,9 +40,9 @@ end
 
     # Expected momentum Δp = m * g * dt = 2.0 * -9.81 * 0.1 = -1.962
     expected_py = -1.962
-    @test all(grid.state_new.momentum.x .== 0.0)
-    @test all(grid.state_new.momentum.y .≈ expected_py)
-    @test all(grid.state_new.momentum.z .== 0.0)
+    @test all(grid.state_write.momentum.x .== 0.0)
+    @test all(grid.state_write.momentum.y .≈ expected_py)
+    @test all(grid.state_write.momentum.z .== 0.0)
 
     # Performance assertions
     @test_call apply_external_forces!(force, grid, dt)
@@ -62,21 +62,21 @@ end
 
     # Case A: Center Singularity check
     # Node [2,2,2] is exactly on the center. The force should be 0 due to r_vec = 0.
-    @test grid.state_new.momentum.x[2, 2, 2] ≈ 0.0 atol=1e-12
-    @test grid.state_new.momentum.y[2, 2, 2] ≈ 0.0 atol=1e-12
-    @test grid.state_new.momentum.z[2, 2, 2] ≈ 0.0 atol=1e-12
+    @test grid.state_write.momentum.x[2, 2, 2] ≈ 0.0 atol=1e-12
+    @test grid.state_write.momentum.y[2, 2, 2] ≈ 0.0 atol=1e-12
+    @test grid.state_write.momentum.z[2, 2, 2] ≈ 0.0 atol=1e-12
     # Case B: Directional Attraction check
     # Node [1, 2, 2] is at coordinate (0.0, 1.0, 1.0), which is directly to the LEFT 
     # of the center. An attractive force should pull it to the RIGHT (+x direction).
-    @test grid.state_new.momentum.x[1, 2, 2] > 0.0
-    @test grid.state_new.momentum.y[1, 2, 2] ≈ 0.0 atol=1e-12
-    @test grid.state_new.momentum.z[1, 2, 2] ≈ 0.0 atol=1e-12
+    @test grid.state_write.momentum.x[1, 2, 2] > 0.0
+    @test grid.state_write.momentum.y[1, 2, 2] ≈ 0.0 atol=1e-12
+    @test grid.state_write.momentum.z[1, 2, 2] ≈ 0.0 atol=1e-12
 
     # Node [3, 2, 2] is at coordinate (2.0, 1.0, 1.0), which is directly to the RIGHT 
     # of the center. An attractive force should pull it to the LEFT (-x direction).
-    @test grid.state_new.momentum.x[3, 2, 2] < 0.0
-    @test grid.state_new.momentum.y[3, 2, 2] ≈ 0.0 atol=1e-12
-    @test grid.state_new.momentum.z[3, 2, 2] ≈ 0.0 atol=1e-12
+    @test grid.state_write.momentum.x[3, 2, 2] < 0.0
+    @test grid.state_write.momentum.y[3, 2, 2] ≈ 0.0 atol=1e-12
+    @test grid.state_write.momentum.z[3, 2, 2] ≈ 0.0 atol=1e-12
     
     # Performance assertions
     @test_nowarn apply_external_forces!(force, grid, dt)

@@ -19,10 +19,10 @@ shape1 = Cylinder(center, R, h, euler_angles)
 
 linear_vel = SVector{3, Float64}(0.0, 0.0, 0.0)
 rot_speed = 2π/5.0 
-rotational_vec = SVector{3, Float64}(0.0, 0.0, rot_speed)
+rot_vector = SVector{3, Float64}(0.0, 0.0, rot_speed)
 mat = NeoHookean(ρ=1000.0, E=1e6, ν=0.3)
 
-body = Body(shape1, linear_vel, rotational_vec, mat)
+body = Body(shape1, linear_vel, rot_vector, mat)
 bodies = (body,)
 
 Setup = SimulationSetup(dx=0.1, t_end=1.0, backend=backend)
@@ -30,7 +30,7 @@ Setup = SimulationSetup(dx=0.1, t_end=1.0, backend=backend)
 model = build_mpm_model(bodies, Setup)
 
 N_particles = length(model.particle_sets[1].particles.pos)
-dims = size(model.grid.state_old.mass)
+dims = size(model.grid.state_read.mass)
 
 println("Model built successfully with $N_particles particles and a grid of size $dims.")
 

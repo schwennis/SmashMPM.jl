@@ -6,12 +6,12 @@
     buffer_width::SVector{3, Int} = zero(SVector{3, Int})
 
     # Properties
-    CFL_number::T = typeof(dx)(0.4)
+    cfl_number::T = typeof(dx)(0.4)
     t_max::T
     dt_max::T = typeof(dx)(0.01)
     ppc_1d::Int = 2
     particle_set_type::Type{P} = SoAParticleSet
-    boundary_condition::BC = NoBoundaryCondition()
+    boundary_condition::BC = NullBoundaryCondition()
     external_force::EF = NoExternalForce()
     shapefunction::SF = QuadraticSpline()
 
@@ -66,7 +66,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     # Create Particle Sets
     particle_counter = 1
     particle_sets = map(bodies_data) do data
-        mat_state_type = typeof(get_initial_material_state(data.material))
+        mat_state_type = typeof(initial_material_state(data.material))
         n_p = length(data.pos)
         
         # Lokale Arrays pro Body auf CPU
@@ -74,9 +74,9 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
         soundspeeds_cpu = Vector{T}(undef, n_p)
 
         @inbounds for i in 1:n_p
-            state_i = get_initial_material_state(data.material)
+            state_i = initial_material_state(data.material)
             particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], state_i)
-            soundspeeds_cpu[i] = get_soundspeed(data.material, state_i)
+            soundspeeds_cpu[i] = soundspeed(data.material, state_i)
             particle_counter += 1
         end
 
@@ -105,7 +105,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
         zero(T), 
         setup.t_max, 
         setup.dt_max,
-        setup.CFL_number
+        setup.cfl_number
     )
 end
 

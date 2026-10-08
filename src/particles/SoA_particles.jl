@@ -25,7 +25,7 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         ids[i] = p.id
         pos_x[i] = p.pos[1]; pos_y[i] = p.pos[2]; pos_z[i] = p.pos[3]
         mass[i]   = p.mass
-        vol[i]    = p.initial_volume
+        vol[i]    = p.V0
         F[i]      = p.F
         mstate[i] = p.mat_state
     end
@@ -40,7 +40,7 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         id              = _to_backend(backend, ids),
         pos             = pos,
         mass            = _to_backend(backend, mass),
-        initial_volume  = _to_backend(backend, vol),
+        V0  = _to_backend(backend, vol),
         F               = _to_backend(backend, F),
         mat_state       = _to_backend(backend, mstate)
     ))

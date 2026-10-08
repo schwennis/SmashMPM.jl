@@ -60,7 +60,7 @@ function _state_fields(ms::AbstractVector{<:SolidMaterialState{T}}) where {T}
     fields = Dict{String, Array}(
         "mat_state/c"      => [s.c for s in ms],
         "mat_state/e"      => [s.e for s in ms],
-        # accessors return `false` for NoState → converted to 0
+        # accessors return `false` for NullState → converted to 0
         "mat_state/eps_p"  => [T(equivalent_plastic_strain(s.plastic_state)) for s in ms],
         "mat_state/damage" => [T(max(damage_variable(s.plastic_state),
                                      damage_variable(s.damage_state))) for s in ms],

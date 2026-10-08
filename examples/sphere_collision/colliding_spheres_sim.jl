@@ -40,7 +40,7 @@ const DX = T(0.03)
 const T_MAX = T(3*time_to_collision)  # Run simulation for thrice the time to collision
 const PADDING = 3
 const PPC_1D = 2
-const CFL_NUMBER = T(0.4)
+const cfl_number = T(0.4)
 const DT_MAX = T(1e-3)
 const BUFFER_WIDTH = SVector{3, Int}(15, 15, 15)
 
@@ -100,7 +100,7 @@ sim_setup = SimulationSetup(
     dx=DX,
     padding=PADDING,
     buffer_width=BUFFER_WIDTH,
-    CFL_number=CFL_NUMBER,
+    cfl_number=cfl_number,
     t_max=T_MAX,
     dt_max=DT_MAX,
     ppc_1d=PPC_1D,
@@ -113,7 +113,7 @@ sim_setup = SimulationSetup(
 model = build_mpm_model(bodies, sim_setup)
 
 N_particles = length(model.particle_sets[1].particles) + length(model.particle_sets[2].particles)
-grid_dimensions = size(model.grid.state_old)
+grid_dimensions = size(model.grid.state_read)
 println("Simulation setup complete. Number of particles: $N_particles, Grid dimensions: $grid_dimensions")
 
 
