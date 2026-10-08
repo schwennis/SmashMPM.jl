@@ -16,7 +16,8 @@ T = backend_to_use === :cpu ? Float64 : Float64 # Choose correct precision based
 if backend_to_use === :cuda
     println("Using CUDA backend...")
     using CUDA  # Import CUDA only if using CUDABackend
-    CUDA.use
+    CUDA.set_runtime_version!(local_toolkit=true)   # true if local CUDA toolkit is installed, false if using system CUDA
+    println("CUDA device: ", CUDA.name(CUDA.device()))
     CUDA.allowscalar(false)
     BACKEND = CUDABackend()
 else
@@ -41,7 +42,7 @@ const SAVE_TIME_INTERVAL = T(0.1)   # Save simulation state every .1 seconds
 #                                Cube Parameters                               #
 # ---------------------------------------------------------------------------- #
 const CUBE_SIZE = T(1.0)
-const CUBE_MATERIAL = Basalt(T, eos=:murnaghan, strength=:hyperelastic)
+const CUBE_MATERIAL = Basalt(T, eos=:murnaghan, elasticity=:hyperelastic)
 # const CUBE_MATERIAL = NeoHookean(E=T(1e6), ν=T(0.3), ρ=T(1000.0))
 const CUBE_ROT_SPEED = T(2)  # radians per second
 

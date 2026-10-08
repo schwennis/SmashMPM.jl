@@ -93,7 +93,7 @@
         @atomic :monotonic state_write.momentum.x[i, j, k] += p_update[1]
         @atomic :monotonic state_write.momentum.y[i, j, k] += p_update[2]
         @atomic :monotonic state_write.momentum.z[i, j, k] += p_update[3]
-        atomic_max!(grid_state.wave_speed, i, j, k, wavespeed_new)
+        atomic_max!(state_write.wave_speed, i, j, k, wavespeed_new)
     end
 
 end
