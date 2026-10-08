@@ -1,6 +1,6 @@
 @kwdef struct BulkViscosity{T} <: AbstractArtificialViscosity
-    c_quad::T = T(1.5)    # quadratic coefficient (shock spreading)
-    c_lin::T  = T(0.06)   # linear coefficient (damps ringing)
+    c_quad::T = 1.5    # quadratic coefficient (shock spreading)
+    c_lin::T  = 0.06   # linear coefficient (damps ringing)
 end
 
 @inline function viscous_pressure(av::BulkViscosity, kin::Kinematics{T}, c) where {T}

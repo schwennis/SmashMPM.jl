@@ -6,7 +6,7 @@ struct NoMaterialState <: AbstractMaterialState end
 # ---------------------------------------------------------------------------- #
 #                                   Fallback                                   #
 # ---------------------------------------------------------------------------- #
-function material_model(material::AbstractMaterial, mat_state, F, C, V0, m, dt)
+function material_model(material::AbstractMaterial, mat_state, F, C, V0, m, dt, dx)
     error("material_model not implemented for $(typeof(material))")
 end
 

@@ -16,6 +16,7 @@ T = backend_to_use === :cpu ? Float64 : Float64 # Choose correct precision based
 if backend_to_use === :cuda
     println("Using CUDA backend...")
     using CUDA  # Import CUDA only if using CUDABackend
+    CUDA.use
     CUDA.allowscalar(false)
     BACKEND = CUDABackend()
 else

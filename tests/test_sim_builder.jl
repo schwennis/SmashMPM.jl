@@ -85,8 +85,7 @@ end
         # Tuple mit ZWEI VERSCHIEDENEN Datentypen
         bodies_hetero = (body_elastic, body_neohookean)
 
-        # Wenn dieser @inferred Test durchläuft, hast du bewiesen, dass dein 
-        # `map(bodies)` Konstrukt perfekt entrollt (Loop Unrolling) wird!
+        # Test if map(bodies is unrolled perfectly
         model = @inferred build_mpm_model(bodies_hetero, setup)
 
         @test length(model.particle_sets) == 2
