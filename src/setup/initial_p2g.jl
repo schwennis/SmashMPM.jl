@@ -29,7 +29,7 @@
         @atomic :monotonic grid_state.momentum.y[i, j, k] += p_update[2]
         @atomic :monotonic grid_state.momentum.z[i, j, k] += p_update[3]
         ws = soundspeeds[p_idx] + norm(vel)
-        @atomic :monotonic grid_state.wave_speed[i, j, k] max ws
+        atomic_max!(grid_state.wave_speed, i, j, k, ws)
     end
 end
 

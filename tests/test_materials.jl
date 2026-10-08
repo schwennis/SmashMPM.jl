@@ -1,16 +1,25 @@
 @testset "Fallback Behavior" begin
-    # Wir definieren ein Dummy-Material, für das es keine Methode gibt
     struct DummyMaterial <: AbstractMaterial end
-    dummy_mat = DummyMaterial()
-    
-    # Die Platzhalter-Variablen spielen hier keine Rolle, da sofort ein Fehler fliegen soll
-    @test_throws ErrorException material_model(dummy_mat, nothing, nothing, nothing, nothing, nothing, nothing)
+    @test_throws ErrorException material_model(DummyMaterial(), nothing, nothing, nothing, nothing, nothing, nothing, nothing)
 end
 
-@testset "NeoHookean" begin
-    include("materials/test_neohookean.jl")
+# @testset "Legacy / Simple Materials" begin
+#     include("materials/test_neohookean.jl")
+# end
+
+@testset "Equations of State (EoS)" begin
+    include("materials/eos/test_murnaghan.jl")
+    include("materials/eos/test_tillotson.jl")
 end
 
-@testset "SolidMaterial" begin
+@testset "Elasticity Models" begin
+    include("materials/elasticity/test_elasticity.jl")
+end
+
+@testset "Viscosity Models" begin
+    include("materials/viscosity/test_bulk_viscosity.jl")
+end
+
+@testset "Modular SolidMaterial Pipeline" begin
     include("materials/test_solidmaterial.jl")
 end

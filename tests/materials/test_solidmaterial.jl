@@ -1,65 +1,34 @@
-@testset "Constructor & Initial State" begin
-	eos = MurnaghanEOS(ρ=1.0, K0=100.0, n=2.0, η_limit=0.9)
-	elasticity = SmashMPM.HypoElasticity(μ=30.0)
-	material = SmashMPM.SolidMaterial(eos, elasticity, SmashMPM.NoPlasticity(), SmashMPM.NoDamage(), SmashMPM.NoViscosity(), 1.0)
+@testset "SolidMaterial Pipeline Integration" begin
+    # Test am Beispiel Basalt mit Tillotson EOS
+    mat = Basalt(Float64, eos=:tillotson, elasticity=:hypoelastic, viscosity=BulkViscosity())
+    st0 = get_initial_material_state(mat)
 
-	@test material.eos === eos
-	@test material.elasticity === elasticity
-	@test material.ρ == 1.0
+    V0 = 1.0e-6
+    m  = mat.ρ * V0
+    dt = 1.0e-7
+    dx = 1.0e-3
+    I3 = one(SMatrix{3,3,Float64,9})
 
-	state = get_initial_material_state(material)
+    @testset "1. Energie-Erhaltung im geschlossenen Zeitschritt" begin
+        # Starke Kompression mit Scherung
+        C = @SMatrix [-100.0  10.0   0.0;
+                       10.0 -100.0   0.0;
+                        0.0    0.0 -100.0]
+        F = I3 + C * dt
 
-	@test state isa SolidMaterialState{Float64}
-	@test state.eos_state isa MurnaghanState{Float64}
-	@test state.elastic_state isa SmashMPM.HypoElasticState{Float64}
-	@test state.eos_state.p == 0.0
-	@test state.elastic_state.s == zeros(SMatrix{3, 3, Float64, 9})
-	@test get_soundspeed(material, state) ≈ sqrt(100.0 + 4.0 * 30.0 / 3.0)
-end
+        σ, st1 = material_model(mat, st0, F, C, V0, m, dt, dx)
 
-@testset "Material Model" begin
-	eos = MurnaghanEOS(ρ=1.0, K0=100.0, n=2.0, η_limit=0.9)
-	elasticity = SmashMPM.HypoElasticity(μ=30.0)
-	material = SmashMPM.SolidMaterial(eos, elasticity, SmashMPM.NoPlasticity(), SmashMPM.NoDamage(), SmashMPM.NoViscosity(), 1.0)
-	state = get_initial_material_state(material)
-	identity = one(SMatrix{3, 3, Float64, 9})
-	zero_gradient = zeros(SMatrix{3, 3, Float64, 9})
+        # Die interne Energie e muss bei Kompression gestiegen sein
+        @test st1.e > st0.e
 
-	@testset "Reference Configuration" begin
-		stress, new_state = material_model(material, state, identity, zero_gradient, 1.0, 1.0, 0.01, 0.01)
+        # Spannungszerlegung prüfen
+        q = SmashMPM.viscous_pressure(mat.viscosity, SmashMPM.Kinematics(F, C, V0, m, dt, dx), st0.c)
+        expected_σ = st1.elastic_state.s - (st1.eos_state.p + q) * I3
+        @test σ ≈ expected_σ
+    end
 
-		@test stress == zeros(SMatrix{3, 3, Float64, 9})
-		@test new_state.eos_state.p == 0.0
-		@test new_state.elastic_state.s == zeros(SMatrix{3, 3, Float64, 9})
-		@test get_soundspeed(material, new_state) ≈ sqrt(100.0 + 4.0 * 30.0 / 3.0)
-	end
-
-	@testset "Hydrostatic Compression" begin
-		deformation = @SMatrix [0.5 0.0 0.0;
-								0.0 1.0 0.0;
-								0.0 0.0 1.0]
-		stress, new_state = material_model(material, state, deformation, zero_gradient, 1.0, 1.0, 0.01, 0.01)
-
-		expected_pressure = 100.0 / 2.0 * (2.0^2 - 1.0)
-		expected_stress = -expected_pressure * identity
-		expected_soundspeed = sqrt(4.0 * 30.0 / (3.0 * 2.0) + 100.0 / 1.0 * 2.0^2 / 2.0)
-
-		@test stress ≈ expected_stress
-		@test new_state.eos_state.p ≈ expected_pressure
-		@test new_state.elastic_state.s == zeros(SMatrix{3, 3, Float64, 9})
-		@test get_soundspeed(material, new_state) ≈ expected_soundspeed
-	end
-
-	@testset "Deviatoric Deformation" begin
-		velocity_gradient = @SMatrix [1.0 0.0 0.0;
-									  0.0 -1.0 0.0;
-									  0.0 0.0 0.0]
-		dt = 0.1
-		stress, new_state = material_model(material, state, identity, velocity_gradient, 1.0, 1.0, dt, 0.01)
-		expected_deviatoric_stress = 2.0 * elasticity.μ * dt * velocity_gradient
-
-		@test stress ≈ expected_deviatoric_stress
-		@test new_state.elastic_state.s ≈ expected_deviatoric_stress
-		@test new_state.eos_state.p == 0.0
-	end
+    @testset "2. Konfigurations-Fabriken (Basalt & Iron)" begin
+        @test Basalt(Float64, eos=:murnaghan, elasticity=:hyperelastic) isa SolidMaterial
+        @test Iron(Float64, eos=:tillotson, elasticity=:hypoelastic) isa SolidMaterial
+    end
 end
