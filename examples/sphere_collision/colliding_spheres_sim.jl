@@ -12,6 +12,7 @@ T = Float64 # Backend independent precision, has to be Float64 to conserve energ
 if backend_to_use === :cuda
     println("Using CUDA backend...")
     using CUDA  # Import CUDA only if using CUDABackend
+    CUDA.set_runtime_version!(local_toolkit=true)   # true if local CUDA toolkit is installed, false if using system CUDA
     CUDA.allowscalar(false)
     BACKEND = CUDABackend()
 else
@@ -56,8 +57,8 @@ const SAVE_TIME_INTERVAL = T(T_MAX / (animation_time * fps))   # ≈ 3.3e-5 s, 3
 # ---------------------------------------------------------------------------- #
 #                               Sphere Materials                               #
 # ---------------------------------------------------------------------------- #
-const SPHERE1_MATERIAL = Basalt(T, eos=:tillotson, strength=:hypoelastic)
-const SPHERE2_MATERIAL = Basalt(T, eos=:tillotson, strength=:hypoelastic)
+const SPHERE1_MATERIAL = Basalt(T, eos=:tillotson, elasticity=:hypoelastic)
+const SPHERE2_MATERIAL = Basalt(T, eos=:tillotson, elasticity=:hypoelastic)
 
 
 # ---------------------------------------------------------------------------- #
