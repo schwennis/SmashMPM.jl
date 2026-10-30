@@ -7,7 +7,7 @@
 
 A Julia implementation of the Material Point Method (MPM) for impact and hypervelocity simulations of solid bodies. The solver runs on the CPU (multithreaded) and on GPUs through [KernelAbstractions.jl](https://github.com/JuliaGPU/KernelAbstractions.jl) with a single code base.
  
-> **Status:** early development (v0.1.0). The API may change.
+> **Status:** Pre-Release. The API may change.
 
 ---
  
