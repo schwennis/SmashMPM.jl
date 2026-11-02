@@ -69,9 +69,6 @@ end
 # ---------------------------------------------------------------------------- #
 #                           Interfaces and fallbacks                           #
 # ---------------------------------------------------------------------------- #
-# "not implemented" fallback for unimplemented functions
-_not_implemented(f::Symbol, x) = error("$(f) is not implemented for $(typeof(x))")
-
 # State initialisation ------------------------------------------------------- #
 """
     init_state(model_component)

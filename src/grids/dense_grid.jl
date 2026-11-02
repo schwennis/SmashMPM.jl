@@ -2,12 +2,12 @@
 #                                  Dense Grid                                  #
 # ---------------------------------------------------------------------------- #
 mutable struct DenseGrid{T, S <: AbstractArray}<:AbstractGrid
-    state_read::S            # StructArray of GridNodes (from previous time step)
-    state_write::S            # StructArray of GridNodes (for current time step)
+    state_read::S           # StructArray of GridNodes (from previous time step)
+    state_write::S          # StructArray of GridNodes (for current time step)
 
     padding::Int            # Padding width
 
-    origin::SVector{3, T}   # Space Coordinates of the grid origin (1,1,1) + padding
+    origin::SVector{3, T}   # Space Coordinates of the grid origin (1,1,1)
     inv_dx::T               # Inverse of grid spacing dx
 end
 
