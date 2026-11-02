@@ -25,7 +25,7 @@ const ACTIVATION_MARGIN = 1         # extra nodes around the stencil
 # Inside the tile, nodes are flattened linearly
 # State access is done as follows:
 #   state.mass[l, t] = mass of node l in tile t
-#   where l ∈ [1, TILE_SIZE^3] and t ∈ [1, n_tiles]
+#   where l ∈ [1, TILE_VOLUME] and t ∈ [1, n_active]
 #
 # the tile index t is mapped from the node index i. 
 # For this, a specific implementation of AbstractTileMap is used (eg a HashMap or an IndexMap)
@@ -40,7 +40,7 @@ mutable struct SparseGrid{T, S<:StructArray, M<:AbstractTileMap} <: AbstractGrid
     n_active_write::Int         # tiles 1:n_active_write of state_write are in use
 
     n_nodes::SVector{3, Int}    # domain size in nodes (= size of an equivalent DenseGrid)
-    n_tiles::SVector{3, Int}    # domain size in tiles (= n_nodes ./ TILE_SIZE)
+    n_tiles::SVector{3, Int}    # domain size in tiles (= cld.(n_nodes , TILE_SIZE))
     padding::Int                # padding width in nodes (used for boundary conditions)
 
     origin::SVector{3, T}       # position of node (1, 1, 1)
@@ -55,7 +55,7 @@ function _allocate_tile_pool(backend, ::Type{T}, max_tiles::Int) where {T}
 end
 
 
-function SparseGrid(dx::T, N::SVector{3, Int}, origin::SVector{3, T}, padding::Int=0, TileMapType::M,
+function SparseGrid(dx::T, N::SVector{3, Int}, origin::SVector{3, T}, padding::Int=2, tile_map::Type{<:AbstractTileMap}=TileHashMap,
                     backend=CPU(); max_tiles::Int=4096) where {T, M<:AbstractTileMap}
     n_tiles = cld.(N, TILE_SIZE)
     @assert prod(n_tiles) < typemax(UInt32) "Domain too large for UInt32 tile keys"
@@ -64,8 +64,8 @@ function SparseGrid(dx::T, N::SVector{3, Int}, origin::SVector{3, T}, padding::I
     return SparseGrid(
         _allocate_tile_pool(backend, T, max_tiles),
         _allocate_tile_pool(backend, T, max_tiles),
-        new_tile_map(M, backend, max_tiles),
-        new_tile_map(M, backend, max_tiles),
+        new_tile_map(tile_map, backend, max_tiles),
+        new_tile_map(tile_map, backend, max_tiles),
         0, 0,
         N, n_tiles, padding,
         origin, one(T) / dx,
@@ -78,13 +78,13 @@ end
 # ---------------------------------------------------------------------------- #
 """Checkbounds for node indices"""
 @inline function node_in_bounds(n_nodes, i, j, k)
-    return 1 <= i <= n_nodes[1] & 1 <= j <= n_nodes[2] & 1 <= k <= n_nodes[3]
+    return (1 <= i <= n_nodes[1]) & (1 <= j <= n_nodes[2]) & (1 <= k <= n_nodes[3])
 end
 
 """Converts a node index to a tile coordinate (0-based) along one dimension"""
 @inline tile_coord(i) = div((i - 1), TILE_SIZE)
 
-"""Converts tile coordinates (zero-based) to a tile index (1-based)"""
+"""Converts tile coordinates (zero-based) to a key (0-based)"""
 @inline tile_key(ti, tj, tk, n_tiles) = (ti + n_tiles[1] * (tj + n_tiles[2] * tk)) % UInt32 # Lexiographic ordering
 
 """
@@ -116,8 +116,8 @@ Converts tile key and local node index to global node indices (1-based)
     return 1 + TILE_SIZE * ti + li, 1 + TILE_SIZE * tj + lj, 1 + TILE_SIZE * tk + lk
 end
 
-"""Returns the support offsets of a spline basis function considering a margin"""
-@inline function support_offsets_with_margin(spline, grid_pos, margin, n_nodes)
+"""Returns the lower and upper bounds of the support of the spline basis function considering a margin"""
+@inline function stencil_node_range(spline, grid_pos, margin, n_nodes)
     base    = SVector(get_support_base(spline, grid_pos))
     offsets = get_support_offsets(spline)
     lo = max.(base .+ SVector(first.(offsets)) .- margin, 1)
@@ -132,7 +132,7 @@ end
     p_idx = @index(Global, Linear)
 
     grid_pos = grid_position(positions[p_idx], inv_dx, origin)
-    lo, hi = support_offsets_with_margin(spline, grid_pos, margin, n_nodes)
+    lo, hi = stencil_node_range(spline, grid_pos, margin, n_nodes)
 
     if all(lo .<= hi)       # particle (partly) inside the domain
         for tk in tile_coord(lo[3]):tile_coord(hi[3]),
@@ -183,7 +183,7 @@ function activate_tiles!(grid::SparseGrid{T}, particle_sets, spline) where {T}
         new_max = min(2 * n, prod(grid.n_tiles))
         @info "SparseGrid: growing tile pool from $(max_tiles(grid.map_write)) to $new_max tiles"
         grid.state_write = _allocate_tile_pool(backend, T, new_max)
-        grid.map_write   = new_tile_map(typeof(grid.map_write), backend, new_max, prod(grid.n_tiles))
+        grid.map_write   = new_tile_map(typeof(grid.map_write), backend, new_max)
     end
 end
 
@@ -192,12 +192,13 @@ end
     count_tiles(positions, inv_dx, N, origin, spline; margin=ACTIVATION_MARGIN)
 Count the number of tiles that would be activated by the given positions.
 """
-function count_tiles(positions, inv_dx::T, N::SVector{3, Int}, origin::SVector{3, T},
+function count_tiles(positions, dx::T, N::SVector{3, Int}, origin::SVector{3, T},
                      spline; margin::Int=ACTIVATION_MARGIN) where {T}
+    inv_dx = one(T) / dx
     n_tiles = cld.(N, TILE_SIZE)
     keys    = Set{UInt32}()
     for pos in positions
-        lo, hi = support_offsets_with_margin(spline, grid_position(pos, inv_dx, origin), margin, N)
+        lo, hi = stencil_node_range(spline, grid_position(pos, inv_dx, origin), margin, N)
         all(lo .<= hi) || continue
         for tk in tile_coord(lo[3]):tile_coord(hi[3]),
             tj in tile_coord(lo[2]):tile_coord(hi[2]),
@@ -264,7 +265,7 @@ function _to_dense_state(grid::SparseGrid{T}, state, map, n_active) where {T}
 
     for t in 1:n_active, l in 1:TILE_VOLUME
         i, j, k = node_index(tile_keys[t], l, grid.n_tiles)
-        node_in_domain(grid.n_nodes, i, j, k) || continue    # last tile may stick out
+        node_in_bounds(grid.n_nodes, i, j, k) || continue    # last tile may stick out
 
         dense.mass[i, j, k]       = mass[l, t]
         dense.wave_speed[i, j, k] = wave_speed[l, t]

@@ -4,7 +4,7 @@
 # Maps a tile key (UInt32) to a tile index
 # Tile indices are dense in 1:n_tiles
 #
-# Algorithm after after Qiu et al. 2023:
+# Tile hashing as in Qiu et al. 2023:
 # Open addressing with linear probing
 #   - insert:   atomic compare-and-swap on the key slot.
 #               winning thread takes next free tile index 
@@ -16,7 +16,7 @@
 #
 # Insertion and looking up are done in separate kernel launches
 #
-# Non-activated indices use type max as value:
+# Non-activated keys use type max as value:
 const EMPTY_KEY = typemax(UInt32)
 #
 # Use this for open boundary conditions since the domain size 
@@ -45,13 +45,16 @@ function TileHashMap(backend, max_tiles::Int)
 end
 
 
+@inline new_tile_map(::Type{TileHashMap}, backend, max_tiles::Int) = TileHashMap(backend, max_tiles)
+
+
 # helpers
 @inline capacity(map::TileHashMap) = length(map.keys)
 
 
 function clear!(map::TileHashMap)
     fill!(map.keys, EMPTY_KEY)
-    fill!(map.n_tiles, zero(Int32))
+    fill!(map.n_active, zero(Int32))
     fill!(map.n_missed, zero(Int32))
 end
 
@@ -123,5 +126,5 @@ Returns tile index or 0 if the tile is not registered
         current == EMPTY_KEY && return 0
         slot = (slot + one(UInt32)) & mask
     end
-    return false    # type neutral 0
+    return 0
 end

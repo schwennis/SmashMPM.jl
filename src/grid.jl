@@ -42,5 +42,5 @@ include("grids/dense_grid.jl")
 # ---------------------------------------------------------------------------- #
 #                                  Sparse Grid                                 #
 # ---------------------------------------------------------------------------- #
-include("grids/sparse_grid.jl")
 include("grids/tile_map.jl")
+include("grids/sparse_grid.jl")
