@@ -41,6 +41,8 @@ export AbstractParticleSet, Particle, SoAParticleSet
 
 include("grid.jl")
 export AbstractGrid, DenseGrid, GridNode
+export SparseGrid, AbstractDomain, OpenDomain, BoxDomain, TileHashMap
+export activate_tiles!, to_dense
 export grid_reset!
 
 include("boundary_conditions.jl")
