@@ -282,6 +282,22 @@ function max_wavespeed(grid::SparseGrid{T}) where {T}
     return maximum(view(grid.state_read.wave_speed, :, 1:grid.n_active_read))
 end
 
+"""
+    grid_reset!(grid::SparseGrid, particle_sets, spline)
+
+Swap read <-> write, clear the new write state and activate the tiles that
+the next G2P2G step can write to (from the current particle positions).
+This is the variant used by `step!`.
+
+`grid_reset!(grid)` alone only swaps and clears; the write grid then has no
+active tiles until `activate_tiles!` is called.
+"""
+function grid_reset!(grid::SparseGrid, particle_sets, spline)
+    grid_reset!(grid)
+    activate_tiles!(grid, particle_sets, spline)
+    return nothing
+end
+
 function grid_reset!(grid::SparseGrid{T}) where {T}
     n_missed = missed_count(grid.map_write)
     n_missed > 0 && @warn "SparseGrid: $n_missed lost P2G writes / particles. Either a particle moved " *

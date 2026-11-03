@@ -98,7 +98,7 @@
 
 end
  
-function g2p2g!(model::MPMModel{T}, dt::T) where T
+function g2p2g!(model::MPMModel{T, MGT, G}, dt::T) where {T, MGT, G <: DenseGrid}
     grid = model.grid
     particle_sets = model.particle_sets
     spline = model.shapefunction

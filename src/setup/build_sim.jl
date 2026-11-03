@@ -88,7 +88,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
         return (pos=pos, vel=vel, mass=mass, vol=vol, affine=initial_affine_matrix(body), material=body.material)
     end
 
-    # collect positions ∀ bodies
+    # Positionen für die Bounding Box sammeln
     for data in bodies_data
         append!(all_positions, data.pos)
     end
@@ -139,7 +139,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     foreach(built) do b
         initial_p2g!(grid, b.pos, b.vel, b.affine, b.mass, b.c, setup.shapefunction)
     end
-    finalize_initial_p2g!(grid)
+    finalize_initial_p2g!(grid, particle_sets, setup.shapefunction)
     
     return MPMModel(
         particle_sets, 

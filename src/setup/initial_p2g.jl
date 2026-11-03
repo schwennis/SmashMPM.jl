@@ -116,8 +116,10 @@ end
 # ---------------------------------------------------------------------------- #
 # DenseGrid: initial_p2g! writes directly into state_read, nothing to do.
 prepare_initial_p2g!(::DenseGrid, particle_sets, spline)  = nothing
-finalize_initial_p2g!(::DenseGrid) = nothing
+finalize_initial_p2g!(::DenseGrid, particle_sets, spline) = nothing
 
-# SparseGrid: activate the write tiles, scatter into them, then swap them to read.
+# SparseGrid: activate the write tiles, scatter into them, then swap them to read
+# (and activate the next write tiles).
 prepare_initial_p2g!(grid::SparseGrid, particle_sets, spline) = (activate_tiles!(grid, particle_sets, spline); nothing)
-finalize_initial_p2g!(grid::SparseGrid) = grid_reset!(grid)
+# The swap also activates the write tiles for the first g2p2g step.
+finalize_initial_p2g!(grid::SparseGrid, particle_sets, spline) = grid_reset!(grid, particle_sets, spline)

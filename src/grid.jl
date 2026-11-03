@@ -24,6 +24,16 @@ function max_wavespeed(grid::AbstractGrid)
 end
 
 """
+    grid_reset!(grid, particle_sets, spline)
+Resets the grid for the next time step, as `grid_reset!(grid)`, and prepares the
+write state for the next g2p2g step. For a SparseGrid this activates the tiles
+around the current particle positions; for a DenseGrid it does nothing extra.
+"""
+function grid_reset!(grid::AbstractGrid, particle_sets, spline)
+    return grid_reset!(grid)
+end
+
+"""
     grid_reset!(grid)
 Resets the grid for the next time step. Swaps the read and write states and
 resets the write state to zero.

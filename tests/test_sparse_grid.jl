@@ -170,7 +170,7 @@ end
     for model in (open_model, box_model)
         g = model.grid
         @test g.n_active_read > 0
-        @test g.n_active_write == 0
+        @test g.n_active_write > 0          # tiles for the first g2p2g are already active
         @test missed_count(g.map_read) == 0
         d = to_dense(g).state_read
         # identical scatter -> identical totals
@@ -183,6 +183,73 @@ end
         if g.domain isa BoxDomain
             @test size(d.mass) == size(ref.mass)
             @test d.mass ≈ ref.mass
+        end
+    end
+end
+
+@testset "g2p2g!: SparseGrid reproduces DenseGrid" begin
+    T = Float64
+    mat = NeoHookean(ρ=1000.0, E=1e6, ν=0.3)
+    bodies = (
+        Body(Sphere(0.3, SVector(-0.4, 0.0, 0.0)), SVector(1.0, 0.0, 0.0), SVector(0.0, 0.0, 2.0), mat),
+        Body(Sphere(0.3, SVector( 0.4, 0.1, 0.0)), SVector(-1.0, 0.0, 0.0), zero(SVector{3, T}), mat),
+    )
+    sparse_setup = SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid, domain=FittedBox())
+    close_to(a, b) = maximum(abs.(a .- b)) <= 1e-9 * max(1.0, maximum(abs.(b)))
+
+    @testset "single step, nodal states" begin
+        dense  = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0))
+        sparse = build_mpm_model(bodies, sparse_setup)
+        dt = 1e-5
+
+        SmashMPM.g2p2g!(dense, dt)
+        SmashMPM.g2p2g!(sparse, dt)
+        @test missed_count(sparse.grid.map_write) == 0
+
+        d = to_dense(sparse.grid).state_write
+        r = dense.grid.state_write
+        @test close_to(d.mass, r.mass)
+        @test close_to(d.momentum.x, r.momentum.x)
+        @test close_to(d.momentum.y, r.momentum.y)
+        @test close_to(d.momentum.z, r.momentum.z)
+        @test close_to(d.wave_speed, r.wave_speed)
+
+        for (ps_d, ps_s) in zip(dense.particle_sets, sparse.particle_sets)
+            @test close_to(ps_s.particles.pos.x, ps_d.particles.pos.x)
+            @test close_to(ps_s.particles.pos.y, ps_d.particles.pos.y)
+            @test close_to(ps_s.particles.pos.z, ps_d.particles.pos.z)
+            @test maximum(norm.(ps_s.particles.F .- ps_d.particles.F)) <= 1e-9
+        end
+    end
+
+    @testset "5 steps with step! (reset + tile activation)" begin
+        dense  = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0))
+        sparse = build_mpm_model(bodies, sparse_setup)
+
+        for _ in 1:5
+            dt_d = SmashMPM.step!(dense)
+            dt_s = SmashMPM.step!(sparse)
+            @test dt_d ≈ dt_s
+        end
+
+        for (ps_d, ps_s) in zip(dense.particle_sets, sparse.particle_sets)
+            @test close_to(ps_s.particles.pos.x, ps_d.particles.pos.x)
+            @test close_to(ps_s.particles.pos.y, ps_d.particles.pos.y)
+            @test close_to(ps_s.particles.pos.z, ps_d.particles.pos.z)
+        end
+        @test sum(to_dense(sparse.grid).state_read.mass) ≈ sum(dense.grid.state_read.mass)
+    end
+
+    @testset "OpenDomain gives the same particle motion" begin
+        dense = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0))
+        open  = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid))
+        @test open.grid.domain isa OpenDomain
+        for _ in 1:5
+            SmashMPM.step!(dense)
+            SmashMPM.step!(open)
+        end
+        for (ps_d, ps_s) in zip(dense.particle_sets, open.particle_sets)
+            @test close_to(ps_s.particles.pos.x, ps_d.particles.pos.x)
         end
     end
 end
