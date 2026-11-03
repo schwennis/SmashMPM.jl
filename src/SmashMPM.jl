@@ -28,6 +28,7 @@ export TillotsonEOS, TillotsonState                                 # Tillotson 
 export HypoElasticStrengthModel, HypoElasticStrengthModelState      # Hypoelastic strength model
 export HyperElasticStrengthModel, HyperElasticStrengthModelState    # Hyperelastic strength model
 export BulkViscosity
+export J2Plasticity, J2PlasticityState
 # Material configs
 export Basalt, Iron
 
