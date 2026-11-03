@@ -119,3 +119,70 @@ end
     l, t = find_node(grid.map_write, grid.domain, 2, 3, 3)
     @test grid.state_write.momentum.x[l, t] == 0.0 # padding
 end
+
+@testset "External forces on SparseGrid" begin
+    T = Float64
+    dt = 0.1
+    grid = SparseGrid(1.0, zero(SVector{3, T}))
+    pos = StructArray{SVector{3, T}}((x=[-3.2], y=[0.4], z=[7.9]))
+    n = activate_tiles!(grid, ((particles=(pos=pos,),),), QuadraticSpline())
+    fill!(view(grid.state_write.mass, :, 1:n), 2.0)
+
+    # Constant gravity: Δp = m g dt on every active node
+    apply_external_forces!(ConstantGravity(SVector{3, T}(0.0, -9.81, 0.0)), grid, dt)
+    @test all(view(grid.state_write.momentum.y, :, 1:n) .≈ -1.962)
+    @test all(view(grid.state_write.momentum.x, :, 1:n) .== 0.0)
+
+    # Radial field: node on the center gets no force, its -x neighbour is pulled to +x
+    fill!(grid.state_write.momentum.x, 0.0)
+    center_node = (-3, 1, 8)          # global node index, position (-4, 0, 7)
+    center = SmashMPM.node_position(grid.origin, grid.inv_dx, center_node...)
+    apply_external_forces!(RadialInvSquareForceField(-10.0, center), grid, dt)
+    l, t = find_node(grid.map_write, grid.domain, center_node...)
+    @test grid.state_write.momentum.x[l, t] ≈ 0.0 atol = 1e-12
+    l, t = find_node(grid.map_write, grid.domain, center_node[1] - 1, center_node[2], center_node[3])
+    @test t > 0
+    @test grid.state_write.momentum.x[l, t] > 0.0
+
+    @test apply_external_forces!(NoExternalForce(), grid, dt) === nothing
+    @test_throws ErrorException apply_external_forces!(VectorFieldForce(zeros(SVector{3, T}, 2, 2, 2)), grid, dt)
+end
+
+@testset "build_mpm_model with SparseGrid" begin
+    T = Float64
+    mat = NeoHookean(ρ=1000.0, E=1e6, ν=0.3)
+    body1 = Body(Sphere(0.3, SVector(-1.0, 0.0, 0.0)), SVector(1.0, 0.0, 0.0), SVector(0.0, 0.0, 2.0), mat)
+    body2 = Body(Sphere(0.3, SVector( 1.0, 0.5, 0.0)), SVector(-1.0, 0.0, 0.0), zero(SVector{3, T}), mat)
+    bodies = (body1, body2)
+
+    dense_model = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0))
+    open_model  = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid))
+    box_model   = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid,
+                                                         boundary_condition=NoSlipBoundary()))
+
+    @test open_model.grid isa SparseGrid
+    @test open_model.grid.domain isa OpenDomain
+    @test box_model.grid.domain isa BoxDomain
+    @test_throws ErrorException build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid,
+                                                domain=OpenDomain(), boundary_condition=NoSlipBoundary()))
+
+    ref = dense_model.grid.state_read
+    for model in (open_model, box_model)
+        g = model.grid
+        @test g.n_active_read > 0
+        @test g.n_active_write == 0
+        @test missed_count(g.map_read) == 0
+        d = to_dense(g).state_read
+        # identical scatter -> identical totals
+        @test sum(d.mass)       ≈ sum(ref.mass)       rtol = 1e-12
+        @test sum(d.momentum.x) ≈ sum(ref.momentum.x) atol = 1e-10
+        @test sum(d.momentum.y) ≈ sum(ref.momentum.y) atol = 1e-10
+        @test maximum(d.wave_speed) ≈ maximum(ref.wave_speed)
+        @test SmashMPM.max_wavespeed(g) ≈ SmashMPM.max_wavespeed(dense_model.grid)
+        # box: same nodes as the dense grid
+        if g.domain isa BoxDomain
+            @test size(d.mass) == size(ref.mass)
+            @test d.mass ≈ ref.mass
+        end
+    end
+end

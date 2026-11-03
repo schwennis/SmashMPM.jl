@@ -47,3 +47,77 @@ function initial_p2g!(grid, positions, velocities, affines, masses, soundspeeds,
 
     KernelAbstractions.synchronize(backend)
 end
+
+
+# ---------------------------------------------------------------------------- #
+#                           Initial P2G on SparseGrid                          #
+# ---------------------------------------------------------------------------- #
+# Scatters into grid.state_write, whose tiles must have been activated before
+# (activate_tiles!). Afterwards, finalize_initial_p2g! swaps write -> read.
+@kernel function initial_p2g_sparse_kernel!(state, map, domain, positions, velocities, affine, masses, soundspeeds,
+                                            origin, inv_dx, spline)
+    p_idx = @index(Global, Linear)
+
+    pos  = positions[p_idx]
+    vel  = velocities[p_idx]
+    mass = masses[p_idx]
+
+    grid_pos = grid_position(pos, inv_dx, origin)
+
+    if grid_pos_representable(grid_pos)
+        base_node = get_support_base(spline, grid_pos)
+        iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
+        ws = soundspeeds[p_idx] + norm(vel)
+
+        for di in iterator_i, dj in iterator_j, dk in iterator_k
+            i = base_node[1] + di
+            j = base_node[2] + dj
+            k = base_node[3] + dk
+
+            l, t = find_node(map, domain, i, j, k)
+            if t == 0
+                # outside a BoxDomain: clipped like in the DenseGrid; otherwise a lost write
+                node_in_domain(domain, i, j, k) && record_miss!(map)
+            else
+                natural_coords = grid_pos - SVector(i, j, k)
+                N = shapefunction(spline, natural_coords)
+                r_rel = - natural_coords * (1 / inv_dx)
+
+                p_update = N * (mass * vel + mass * affine * r_rel)
+
+                @atomic :monotonic state.mass[l, t] += N * mass
+                @atomic :monotonic state.momentum.x[l, t] += p_update[1]
+                @atomic :monotonic state.momentum.y[l, t] += p_update[2]
+                @atomic :monotonic state.momentum.z[l, t] += p_update[3]
+                atomic_max!(state.wave_speed, l, t, ws)
+            end
+        end
+    else
+        record_miss!(map)
+    end
+end
+
+function initial_p2g!(grid::SparseGrid, positions, velocities, affines, masses, soundspeeds, spline)
+    isempty(positions) && return nothing
+    state   = grid.state_write
+    backend = KernelAbstractions.get_backend(state.mass)
+    kernel  = initial_p2g_sparse_kernel!(backend)
+
+    kernel(state, grid.map_write, grid.domain, positions, velocities, affines, masses, soundspeeds,
+           grid.origin, grid.inv_dx, spline; ndrange=length(positions))
+
+    KernelAbstractions.synchronize(backend)
+    return nothing
+end
+
+
+# ---------------------------------------------------------------------------- #
+#                       Preparation / finalization per grid                    #
+# ---------------------------------------------------------------------------- #
+# DenseGrid: initial_p2g! writes directly into state_read, nothing to do.
+prepare_initial_p2g!(::DenseGrid, particle_sets, spline)  = nothing
+finalize_initial_p2g!(::DenseGrid) = nothing
+
+# SparseGrid: activate the write tiles, scatter into them, then swap them to read.
+prepare_initial_p2g!(grid::SparseGrid, particle_sets, spline) = (activate_tiles!(grid, particle_sets, spline); nothing)
+finalize_initial_p2g!(grid::SparseGrid) = grid_reset!(grid)

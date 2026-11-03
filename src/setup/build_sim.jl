@@ -1,9 +1,31 @@
-@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T, E}
+# ---------------------------------------------------------------------------- #
+#                      Domain options for the SparseGrid                       #
+# ---------------------------------------------------------------------------- #
+# SimulationSetup(domain = ...) accepts
+#   AutoDomain()   (default) open domain for NullBoundaryCondition, otherwise a
+#                  box fitted around the bodies (like the DenseGrid)
+#   OpenDomain()   always unbounded (open boundary conditions)
+#   FittedBox()    always a box fitted around the bodies incl. padding + buffer_width
+# The DenseGrid ignores this option (it is always a fitted box).
+struct AutoDomain end
+struct FittedBox end
+
+resolve_domain(::AutoDomain, ::NullBoundaryCondition, N) = OpenDomain()
+resolve_domain(::AutoDomain, ::AbstractBoundaryCondition, N) = BoxDomain(N)
+resolve_domain(::FittedBox, ::AbstractBoundaryCondition, N) = BoxDomain(N)
+resolve_domain(::OpenDomain, ::NullBoundaryCondition, N) = OpenDomain()
+resolve_domain(::OpenDomain, bc::AbstractBoundaryCondition, N) =
+    error("$(typeof(bc)) needs walls and cannot be combined with an OpenDomain. " *
+          "Use NullBoundaryCondition for open boundaries or domain = FittedBox().")
+
+
+@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T, E, DM}
     # Grid
     dx::T
     grid_type::Type{G} = DenseGrid
     padding::Int = 2
     buffer_width::SVector{3, Int} = zero(SVector{3, Int})
+    domain::DM = AutoDomain()           # only used by the SparseGrid
 
     # Properties
     cfl_number::T = typeof(dx)(0.4)
@@ -37,7 +59,26 @@ function bounding_box(positions::AbstractArray{SVector{3, T}}) where {T}
     return min_corner, max_corner
 end
 
-function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC, EF, SF, B, T}) where {T, P<:AbstractParticleSet, BC<:AbstractBoundaryCondition, EF<:AbstractExternalForce, SF<:AbstractShapeFunction, B}
+# ---------------------------------------------------------------------------- #
+#                               Grid construction                              #
+# ---------------------------------------------------------------------------- #
+function _build_grid(::Type{<:DenseGrid}, setup::SimulationSetup, N, origin, positions)
+    return DenseGrid(setup.dx, N, origin, setup.padding, setup.backend)
+end
+
+function _build_grid(::Type{<:SparseGrid}, setup::SimulationSetup, N, origin, positions)
+    domain    = resolve_domain(setup.domain, setup.boundary_condition, N)
+    n_tiles   = count_tiles(positions, setup.dx, origin, setup.shapefunction; domain)
+    max_tiles = max(64, cld(5 * n_tiles, 4))        # 25 % headroom, the pool grows if needed
+    return SparseGrid(setup.dx, origin; domain, padding=setup.padding,
+                      backend=setup.backend, max_tiles)
+end
+
+
+# ---------------------------------------------------------------------------- #
+#                                 Model builder                                #
+# ---------------------------------------------------------------------------- #
+function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF, B, T}) where {G, T, P<:AbstractParticleSet, BC<:AbstractBoundaryCondition, EF<:AbstractExternalForce, SF<:AbstractShapeFunction, B}
     particle_spacing = setup.dx / setup.ppc_1d
 
     all_positions = SVector{3, T}[]
@@ -47,12 +88,12 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
         return (pos=pos, vel=vel, mass=mass, vol=vol, affine=initial_affine_matrix(body), material=body.material)
     end
 
-    # Positionen für die Bounding Box sammeln
+    # collect positions ∀ bodies
     for data in bodies_data
         append!(all_positions, data.pos)
     end
 
-    # Create Grid
+    # Grid geometry (for an OpenDomain only the origin matters)
     min_corner, max_corner = bounding_box(all_positions)
     grid_length = max_corner - min_corner .+ particle_spacing
 
@@ -61,11 +102,11 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
     N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * margin
     origin = min_corner .- margin * setup.dx .- T(0.5) * particle_spacing
 
-    grid = DenseGrid(setup.dx, N, origin, setup.padding, setup.backend)
+    grid = _build_grid(setup.grid_type, setup, N, origin, all_positions)
     
-    # Create Particle Sets
+    # Create Particle Sets (+ device copies of the data needed for the initial P2G)
     particle_counter = 1
-    particle_sets = map(bodies_data) do data
+    built = map(bodies_data) do data
         mat_state_type = typeof(initial_material_state(data.material))
         n_p = length(data.pos)
         
@@ -80,20 +121,25 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
             particle_counter += 1
         end
 
-        # Daten für initial_p2g! auf Backend laden
-        pos_dev         = _to_backend(setup.backend, data.pos)
-        vel_dev         = _to_backend(setup.backend, data.vel)
-        mass_dev        = _to_backend(setup.backend, data.mass)
-        soundspeeds_dev = _to_backend(setup.backend, soundspeeds_cpu)
+        particle_set = setup.particle_set_type(particle_vector, data.material, setup.backend)
 
-
-
-
-        initial_p2g!(grid, pos_dev, vel_dev, data.affine, mass_dev, soundspeeds_dev, setup.shapefunction)
-
-        # Return ParticleSet auf dem Backend
-        return setup.particle_set_type(particle_vector, data.material, setup.backend)
+        return (
+            set    = particle_set,
+            pos    = _to_backend(setup.backend, data.pos),
+            vel    = _to_backend(setup.backend, data.vel),
+            mass   = _to_backend(setup.backend, data.mass),
+            c      = _to_backend(setup.backend, soundspeeds_cpu),
+            affine = data.affine,
+        )
     end
+    particle_sets = map(b -> b.set, built)
+
+    # Initial P2G (SparseGrid: activates its tiles first and swaps them to the read state)
+    prepare_initial_p2g!(grid, particle_sets, setup.shapefunction)
+    foreach(built) do b
+        initial_p2g!(grid, b.pos, b.vel, b.affine, b.mass, b.c, setup.shapefunction)
+    end
+    finalize_initial_p2g!(grid)
     
     return MPMModel(
         particle_sets, 
@@ -108,4 +154,3 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{DenseGrid, P, BC,
         setup.cfl_number
     )
 end
-

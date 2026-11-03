@@ -37,17 +37,8 @@ function model_to_cpu(model::MPMModel)
         )
     end
 
-    old_state_cpu = adapt(Array, model.grid.state_read)
-    new_state_cpu = adapt(Array, model.grid.state_write)
+    cpu_grid = grid_to_cpu(model.grid)
 
-    cpu_grid = DenseGrid(
-        old_state_cpu,
-        new_state_cpu,
-        model.grid.padding,
-        model.grid.origin,
-        model.grid.inv_dx
-    )
-    
     cpu_model = MPMModel(
         cpu_particle_sets,
         cpu_grid,
@@ -61,4 +52,35 @@ function model_to_cpu(model::MPMModel)
         model.cfl_number
     )
     return cpu_model
+end
+
+
+# ---------------------------------------------------------------------------- #
+#                              Grid -> CPU copies                              #
+# ---------------------------------------------------------------------------- #
+function grid_to_cpu(grid::DenseGrid)
+    return DenseGrid(
+        adapt(Array, grid.state_read),
+        adapt(Array, grid.state_write),
+        grid.padding,
+        grid.origin,
+        grid.inv_dx
+    )
+end
+
+# Stays sparse (a dense copy of an open domain can be arbitrarily large).
+# Use to_dense(grid) explicitly where a DenseGrid is required.
+function grid_to_cpu(grid::SparseGrid)
+    return SparseGrid(
+        adapt(Array, grid.state_read),
+        adapt(Array, grid.state_write),
+        adapt(Array, grid.map_read),
+        adapt(Array, grid.map_write),
+        grid.n_active_read,
+        grid.n_active_write,
+        grid.domain,
+        grid.padding,
+        grid.origin,
+        grid.inv_dx
+    )
 end
