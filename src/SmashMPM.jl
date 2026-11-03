@@ -41,6 +41,8 @@ export AbstractParticleSet, Particle, SoAParticleSet
 
 include("grid.jl")
 export AbstractGrid, DenseGrid, GridNode
+export SparseGrid, AbstractDomain, OpenDomain, BoxDomain, TileHashMap
+export activate_tiles!, to_dense
 export grid_reset!
 
 include("boundary_conditions.jl")
@@ -48,7 +50,7 @@ export AbstractBoundaryCondition, NullBoundaryCondition, NoSlipBoundary
 export apply_boundary_condition!
 
 include("external_forces.jl")
-export AbstractExternalForce, NoExternalForce, ConstantGravity, RadialInvSquareForceField
+export AbstractExternalForce, NoExternalForce, ConstantGravity, RadialInvSquareForceField, VectorFieldForce
 export apply_external_forces!
 
 include("setup/geometry.jl")
@@ -67,6 +69,7 @@ export AbstractExporter, HDF5Exporter, VTKExporter, write_output
 
 include("setup/build_sim.jl")
 export AbstractBody, Body, SimulationSetup, build_mpm_model
+export AutoDomain, FittedBox
 
 include("solver.jl")
 export g2p2g!, courant_timestep

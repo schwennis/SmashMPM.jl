@@ -13,7 +13,8 @@ function step!(model::MPMModel)
     apply_boundary_condition!(model.boundary_condition, model.grid)
     
     # Reset grid for next step, swaps old <-> new
-    grid_reset!(model.grid)
+    # (for SparseGrid: also activates the tiles for the next g2p2g from the new particle positions)
+    grid_reset!(model.grid, model.particle_sets, model.shapefunction)
 
     # Update simulation time
     model.t += dt

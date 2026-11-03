@@ -26,6 +26,10 @@ using KernelAbstractions
         include("test_grid.jl")
     end
 
+    @testset "Sparse Grid" begin
+        include("test_sparse_grid.jl")
+    end
+
     @testset "Boundary Conditions" begin
         include("test_boundary_conditions.jl")
     end
