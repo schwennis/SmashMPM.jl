@@ -1,38 +1,57 @@
-using BenchmarkTools
-using InteractiveUtils
-using Profile
-using PProf
-using StaticArrays
+# File: benchmarks/benchmark_grid.jl
 
-include("../src/SmashMPM.jl")
-using .SmashMPM
+"""
+    add_grid_benchmarks!(suite, backend; T=Float32, n_side=64, n_particles_sparse=25_000)
 
-dx = 1.0
-N = @SVector [256, 256, 256]
-origin = @SVector [0.0, 0.0, 0.0]
-padding = 0
+Register the grid benchmarks (reductions, reset, tile activation) in `suite["grid"]`.
+"""
+function add_grid_benchmarks!(
+    suite::BenchmarkGroup,
+    backend::Backend;
+    T::Type{<:AbstractFloat}=Float32,
+    n_side::Int=64,
+    n_particles_sparse::Int=25_000,
+)
+    grp = suite["grid"] = BenchmarkGroup()
 
+    # ------------------------------------------------------------------------ #
+    #                                Dense Grid                                #
+    # ------------------------------------------------------------------------ #
+    N          = SVector{3, Int}(n_side, n_side, n_side)
+    dense_grid = DenseGrid(T(1.0), N, zero(SVector{3, T}), 2, backend)
+    populate_dense_grid!(dense_grid, backend)
 
-grid = DenseGrid(dx, N, origin, padding)
+    dense = grp["DenseGrid_$(n_side)³"] = BenchmarkGroup()
+    dense["max_wavespeed"] = @benchmarkable(
+        sync_run!(SmashMPM.max_wavespeed, $backend, $dense_grid)
+    )
+    dense["grid_reset!"] = @benchmarkable(
+        sync_run!(grid_reset!, $backend, $dense_grid)
+    )
+    # maximum and fill! on plain arrays, no kernel launch on the CPU
+    is_cpu(backend) && expect_no_allocs!(dense, "max_wavespeed", "grid_reset!")
 
+    # ------------------------------------------------------------------------ #
+    #                               Sparse Grid                                #
+    # ------------------------------------------------------------------------ #
+    sparse_grid, p_sets, spline, _ = make_populated_sparse_grid(
+        n_particles_sparse, backend; T=T, domain_type=:open
+    )
 
-# fill the grid with some dummy data for benchmarking
-function populate_dummy_data!(grid, N)
-    # Inside a function, variables are local and perfectly type-inferred
-    for i in 1:N[1], j in 1:N[2], k in 1:N[3]
-        grid.state_read.mass[i, j, k] = rand()
-        grid.state_read.wave_speed[i, j, k] = rand() * 10
-    end
+    sparse = grp["SparseGrid_$(n_particles_sparse)p"] = BenchmarkGroup()
+    sparse["max_wavespeed"] = @benchmarkable(
+        sync_run!(SmashMPM.max_wavespeed, $backend, $sparse_grid)
+    )
+    # activate_tiles! needs an empty write map before every evaluation (evals = 1)
+    sparse["activate_tiles!"] = @benchmarkable(
+        sync_run!(activate_tiles!, $backend, $sparse_grid, $p_sets, $spline),
+        setup = (reset_tile_activation!($sparse_grid, $backend))
+    )
+    sparse["grid_reset_and_activate!"] = @benchmarkable(
+        sync_run!(grid_reset!, $backend, $sparse_grid, $p_sets, $spline)
+    )
+    # Tile activation launches a kernel and reads the tile counter back to the host
+    is_cpu(backend) && expect_no_allocs!(sparse, "max_wavespeed")
+
+    return grp
 end
-
-populate_dummy_data!(grid, N)
-
-println("Benchmarking max_wavespeed...")
-max_speed = SmashMPM.max_wavespeed(grid) # Warm-up call to compile the function
-display(@benchmark SmashMPM.max_wavespeed($grid))
-
-
-println("Benchmarking grid_reset!...")
-# Warm-up call to compile the function
-SmashMPM.grid_reset!(grid)
-display(@benchmark SmashMPM.grid_reset!($grid))

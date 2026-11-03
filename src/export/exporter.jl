@@ -62,6 +62,9 @@ end
 #                                 HDF5 Exporter                                #
 # ---------------------------------------------------------------------------- #
 
+_dense_for_export(grid::DenseGrid)  = grid
+_dense_for_export(grid::SparseGrid) = to_dense(grid)
+
 @kwdef struct HDF5Exporter <: AbstractExporter
     output_dir::String = "output"
     filename_prefix::String = "sim_"
@@ -76,6 +79,8 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
  
     cpu_model = model_to_cpu(model)
     T = eltype(cpu_model.grid.origin)
+    # The grid output is a regular (dense) array; a SparseGrid is converted for it
+    grid_out = exporter.export_grid ? _dense_for_export(cpu_model.grid) : nothing
     padded_idx = Printf.@sprintf("%06d", step)
     h5_filename = "$(exporter.filename_prefix)$(padded_idx).h5"
     h5_path = joinpath(exporter.output_dir, h5_filename)
@@ -156,11 +161,11 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
  
         # 2. Grid-Export
         if exporter.export_grid
-            grid_state = _to_cpu_grid_state(cpu_model.grid.state_read)
+            grid_state = _to_cpu_grid_state(grid_out.state_read)
             
             # Grid-Parameter ablegen
-            file["grid/origin"] = [cpu_model.grid.origin[1], cpu_model.grid.origin[2], cpu_model.grid.origin[3]]
-            file["grid/dx"]     = 1.0 / cpu_model.grid.inv_dx
+            file["grid/origin"] = [grid_out.origin[1], grid_out.origin[2], grid_out.origin[3]]
+            file["grid/dx"]     = 1.0 / grid_out.inv_dx
             
             # Momentum-Komponenten zu einem 4D-Array (Vektorfeld) zusammenfassen
             Nx, Ny, Nz = size(grid_state.mass)
@@ -189,9 +194,9 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
         dx = 1.0
         
         if exporter.export_grid
-            grid_dims = size(cpu_model.grid.state_read.mass)
-            origin = cpu_model.grid.origin
-            dx = 1.0 / cpu_model.grid.inv_dx
+            grid_dims = size(grid_out.state_read.mass)
+            origin = grid_out.origin
+            dx = 1.0 / grid_out.inv_dx
         end
         
         _write_xdmf_metadata(

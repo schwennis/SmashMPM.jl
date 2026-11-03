@@ -48,6 +48,16 @@ end
 # helpers
 @inline capacity(map::TileHashMap) = length(map.keys)
 
+"""
+    count_limit(map::TileHashMap)
+
+At most this many hash slots are claimed (load factor 0.75). Once the counter
+reaches it, further new keys are dropped without being counted, which keeps
+probe chains short and the counter meaningful. Since `capacity >= 2 max_tiles`,
+the limit is always above `max_tiles`, so normal operation is never affected.
+"""
+@inline count_limit(map::TileHashMap) = (3 * capacity(map)) ÷ 4
+
 
 function clear!(map::TileHashMap)
     fill!(map.keys, EMPTY_KEY)
@@ -78,10 +88,15 @@ end
 Register `key` in the map (no-op if it is already there). Safe to call from
 many threads at once.
 
-Overflow handling (both are detected on the host via `tile_count`):
-  - tile pool full:  the counter exceeds `max_tiles(map)`, the slot gets value 0
-  - hash table full: the counter is still incremented, so that
-                     `tile_count(map) > max_tiles(map)` and the host grows the pool
+The counter `n_active` is incremented exactly once per claimed hash slot, i.e.
+it counts *distinct* tiles, no matter how many particles insert the same key.
+
+Overflow handling (detected on the host via `tile_count`):
+  - tile pool full:  the counter exceeds `max_tiles(map)`, the slot gets value 0.
+                     The count stays exact, so the host can size the new pool.
+  - hash table at `count_limit(map)`: new keys are dropped and not counted.
+                     `tile_count(map) >= count_limit(map)` then only is a lower
+                     bound and the host grows the map before sizing the pool.
 """
 @inline function insert_tile!(map::TileHashMap, key::TileKey)
     mask = (capacity(map) - 1) % UInt64
@@ -93,6 +108,9 @@ Overflow handling (both are detected on the host via `tile_count`):
         current == key && return nothing                    # already registered
 
         if current == EMPTY_KEY
+            # key is new: drop it if the table is saturated (host regrows the map)
+            Atomix.@atomic(:monotonic, map.n_active[1]) >= count_limit(map) && return nothing
+
             res = Atomix.@atomicreplace map.keys[idx] EMPTY_KEY => key
             if res.success
                 # This thread owns the slot: hand out the next tile index
@@ -111,9 +129,10 @@ Overflow handling (both are detected on the host via `tile_count`):
         slot = (slot + one(UInt64)) & mask              # linear probing
     end
 
-    # Hash table completely full (cannot happen while n_active <= max_tiles,
-    # since capacity >= 2 max_tiles). Signal overflow so the host grows the map.
-    Atomix.@atomic map.n_active[1] += Int32(1)
+    # Hash table completely full. Only reachable when many threads pass the
+    # count_limit check at the same time; then n_active == capacity >= count_limit
+    # already signals saturation. Do NOT count this attempt: the counter must
+    # count tiles, not insertion attempts.
     return nothing
 end
 

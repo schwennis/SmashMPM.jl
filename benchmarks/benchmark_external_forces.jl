@@ -1,58 +1,75 @@
-using BenchmarkTools
-using InteractiveUtils
-using Profile
-using PProf
-using StaticArrays
+# File: benchmarks/benchmark_external_forces.jl
 
-include("../src/SmashMPM.jl")
-using .SmashMPM
+"""
+    add_external_force_benchmarks!(suite, backend; T=Float32, n_side=64, n_particles_sparse=25_000)
 
+Register the external force benchmarks in `suite["external_forces"]`.
+"""
+function add_external_force_benchmarks!(
+    suite::BenchmarkGroup,
+    backend::Backend;
+    T::Type{<:AbstractFloat}=Float32,
+    n_side::Int=64,
+    n_particles_sparse::Int=25_000,
+)
+    grp = suite["external_forces"] = BenchmarkGroup()
+    dt  = T(1e-4)
 
-
-# --- Setup Benchmarking Harness ---
-function run_force_benchmarks(N_size)
-    T = Float64
-    dx = 1.0
-    N = SVector{3, Int}(N_size, N_size, N_size)
-    origin = SVector{3, T}(0.0, 0.0, 0.0)
-    padding = 0
-    dt = 1e-3
-
-    grid = DenseGrid(dx, N, origin, padding, Array)
-    
-    # Pre-fill with local scope to avoid global allocations
-    fill!(grid.state_write.mass, 2.0)
-    fill!(grid.state_write.momentum, zero(SVector{3, T}))
-
-    # Instantiate Force structures
     no_force = NoExternalForce()
     gravity  = ConstantGravity(SVector{3, T}(0.0, -9.81, 0.0))
-    radial   = RadialInvSquareForceField(-10.0, SVector{3, T}(N_size/2, N_size/2, N_size/2))
+    f_const  = SVector{3, T}(0.1, -9.81, 0.0)       # value of the constant VectorFieldForce
 
-    println("="^50)
-    println(" BENCHMARKING GRID SIZE: $(N_size)³ ($(N_size^3) nodes)")
-    println("="^50)
+    # ------------------------------------------------------------------------ #
+    #                                Dense Grid                                #
+    # ------------------------------------------------------------------------ #
+    N          = SVector{3, Int}(n_side, n_side, n_side)
+    dense_grid = DenseGrid(T(1.0), N, zero(SVector{3, T}), 2, backend)
+    populate_dense_grid!(dense_grid, backend)
 
-    println("\n--> Testing NoExternalForce:")
-    # Warmup
-    apply_external_forces!(no_force, grid, dt)
-    @btime apply_external_forces!($no_force, $grid, $dt)
+    radial_dense    = RadialInvSquareForceField(T(-10.0), SVector{3, T}(n_side / 2, n_side / 2, n_side / 2))
+    vec_force_dense = VectorFieldForce(SmashMPM._to_backend(backend, fill(f_const, Tuple(N))))
 
-    println("\n--> Testing ConstantGravity:")
-    # Warmup
-    apply_external_forces!(gravity, grid, dt)
-    @btime apply_external_forces!($gravity, $grid, $dt)
+    dense = grp["DenseGrid_$(n_side)³"] = BenchmarkGroup()
+    dense["NoExternalForce"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $no_force, $dense_grid, $dt)
+    )
+    dense["ConstantGravity"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $gravity, $dense_grid, $dt)
+    )
+    dense["RadialInvSquareForceField"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $radial_dense, $dense_grid, $dt)
+    )
+    dense["VectorFieldForce"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $vec_force_dense, $dense_grid, $dt)
+    )
+    # ConstantGravity is a fused broadcast, the field forces launch kernels
+    is_cpu(backend) && expect_no_allocs!(dense, "NoExternalForce", "ConstantGravity")
 
-    println("\n--> Testing RadialInvSquareForceField:")
-    # Warmup
-    apply_external_forces!(radial, grid, dt)
-    @btime apply_external_forces!($radial, $grid, $dt)
+    # ------------------------------------------------------------------------ #
+    #                               Sparse Grid                                #
+    # ------------------------------------------------------------------------ #
+    # BoxDomain, so that the VectorFieldForce can be benchmarked as well
+    sparse_grid, _, _, N_sparse = make_populated_sparse_grid(
+        n_particles_sparse, backend; T=T, domain_type=:box, padding=2
+    )
+    radial_sparse    = RadialInvSquareForceField(T(-10.0), zero(SVector{3, T}))
+    vec_force_sparse = VectorFieldForce(SmashMPM._to_backend(backend, fill(f_const, Tuple(N_sparse))))
+
+    sparse = grp["SparseGrid_$(n_particles_sparse)p"] = BenchmarkGroup()
+    sparse["NoExternalForce"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $no_force, $sparse_grid, $dt)
+    )
+    sparse["ConstantGravity"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $gravity, $sparse_grid, $dt)
+    )
+    sparse["RadialInvSquareForceField"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $radial_sparse, $sparse_grid, $dt)
+    )
+    sparse["VectorFieldForce"] = @benchmarkable(
+        sync_run!(apply_external_forces!, $backend, $vec_force_sparse, $sparse_grid, $dt)
+    )
+    # Broadcast over views of the active tiles, the views must not escape
+    is_cpu(backend) && expect_no_allocs!(sparse, "NoExternalForce", "ConstantGravity")
+
+    return grp
 end
-
-# --- Execution ---
-
-# 1. Cache-Friendly Size (32,768 nodes)
-run_force_benchmarks(32)
-
-# 2. Production Scale Size (2,097,152 nodes)
-run_force_benchmarks(128)

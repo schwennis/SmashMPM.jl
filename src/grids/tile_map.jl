@@ -39,6 +39,15 @@ tile_count(map::AbstractTileMap)   = Int(Array(map.n_active)[1])
 missed_count(map::AbstractTileMap) = Int(Array(map.n_missed)[1])
 
 """
+    count_limit(map)
+
+`tile_count(map)` is the exact number of distinct registered tiles as long as it
+is below this value. At or above it, the map was saturated and dropped keys, so
+the count is only a lower bound. Maps that always count exactly keep the default.
+"""
+count_limit(map::AbstractTileMap) = typemax(Int)
+
+"""
     record_miss!(map)
 Count one lost write (P2G into an inactive tile) or one lost particle
 (position not representable by tile keys). Device-safe.

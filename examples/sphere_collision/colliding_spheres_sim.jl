@@ -43,7 +43,7 @@ const PADDING = 3
 const PPC_1D = 2
 const cfl_number = T(0.4)
 const DT_MAX = T(1e-3)
-const BUFFER_WIDTH = SVector{3, Int}(15, 15, 15)
+const DOMAIN = OpenDomain()
 
 
 # ---------------------------------------------------------------------------- #
@@ -92,12 +92,14 @@ exporter = HDF5Exporter(
     write_xdmf = true,
     compression_level = 3,
     export_particles = true,
-    export_grid = true
+    export_grid = false
 )
 
-boundary_condition = NoSlipBoundary()
+boundary_condition = NullBoundaryCondition()
 
 sim_setup = SimulationSetup(
+    domain=DOMAIN,
+    grid_type=SparseGrid,
     dx=DX,
     padding=PADDING,
     buffer_width=BUFFER_WIDTH,

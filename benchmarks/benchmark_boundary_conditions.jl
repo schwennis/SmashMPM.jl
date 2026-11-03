@@ -1,39 +1,55 @@
-using BenchmarkTools
-using InteractiveUtils
-using Profile
-using PProf
-using StaticArrays
+# File: benchmarks/benchmark_boundary_conditions.jl
 
-include("../src/SmashMPM.jl")
-using .SmashMPM
+"""
+    add_boundary_condition_benchmarks!(suite, backend; T=Float32, n_side=64, n_particles_sparse=25_000)
 
+Register the boundary condition benchmarks in `suite["boundary_conditions"]`.
+"""
+function add_boundary_condition_benchmarks!(
+    suite::BenchmarkGroup,
+    backend::Backend;
+    T::Type{<:AbstractFloat}=Float32,
+    n_side::Int=64,
+    n_particles_sparse::Int=25_000,
+)
+    grp = suite["boundary_conditions"] = BenchmarkGroup()
 
-dx = 1.0
-N = @SVector [128, 128, 128]
-origin = @SVector [0.0, 0.0, 0.0]
-padding = 4
+    null_bc   = NullBoundaryCondition()
+    noslip_bc = NoSlipBoundary()
 
+    # ------------------------------------------------------------------------ #
+    #                                Dense Grid                                #
+    # ------------------------------------------------------------------------ #
+    N          = SVector{3, Int}(n_side, n_side, n_side)
+    dense_grid = DenseGrid(T(1.0), N, zero(SVector{3, T}), 4, backend)
+    populate_dense_grid!(dense_grid, backend)
 
-grid = DenseGrid(dx, N, origin, padding)
+    dense = grp["DenseGrid_$(n_side)³"] = BenchmarkGroup()
+    dense["NullBoundaryCondition"] = @benchmarkable(
+        sync_run!(apply_boundary_condition!, $backend, $null_bc, $dense_grid)
+    )
+    dense["NoSlipBoundary"] = @benchmarkable(
+        sync_run!(apply_boundary_condition!, $backend, $noslip_bc, $dense_grid)
+    )
+    # The null condition is a no-op, NoSlipBoundary launches a kernel
+    is_cpu(backend) && expect_no_allocs!(dense, "NullBoundaryCondition")
 
-# fill the grid with some dummy data for benchmarking
-function populate_dummy_data!(grid, N)
-    # Inside a function, variables are local and perfectly type-inferred
-    for i in 1:N[1], j in 1:N[2], k in 1:N[3]
-        grid.state_read.mass[i, j, k] = rand()
-        grid.state_read.wave_speed[i, j, k] = rand() * 10
-    end
+    # ------------------------------------------------------------------------ #
+    #                               Sparse Grid                                #
+    # ------------------------------------------------------------------------ #
+    # NoSlipBoundary needs walls, i.e. a BoxDomain
+    sparse_grid, _, _, _ = make_populated_sparse_grid(
+        n_particles_sparse, backend; T=T, domain_type=:box, padding=4
+    )
+
+    sparse = grp["SparseGrid_$(n_particles_sparse)p"] = BenchmarkGroup()
+    sparse["NullBoundaryCondition"] = @benchmarkable(
+        sync_run!(apply_boundary_condition!, $backend, $null_bc, $sparse_grid)
+    )
+    sparse["NoSlipBoundary"] = @benchmarkable(
+        sync_run!(apply_boundary_condition!, $backend, $noslip_bc, $sparse_grid)
+    )
+    is_cpu(backend) && expect_no_allocs!(sparse, "NullBoundaryCondition")
+
+    return grp
 end
-
-populate_dummy_data!(grid, N)
-
-bc = NoSlipBoundary(grid)
-
-println("Benchmarking apply_boundary_condition!...")
-# Warm-up call to compile the function
-apply_boundary_condition!(grid, bc)
-display(@benchmark apply_boundary_condition!($grid, $bc))
-
-Profile.clear_malloc_data()
-apply_boundary_condition!(grid, bc)
-

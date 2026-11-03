@@ -46,6 +46,53 @@ end
     @test all(map.tile_keys[t] == keys[n] for (n, t) in enumerate(tiles))
 end
 
+@testset "TileHashMap counts tiles, not insertion attempts" begin
+    # More distinct keys than the table can hold, each inserted many times
+    map  = TileHashMap(CPU(), 16)                      # capacity 32, count limit 24
+    keys = vec([tile_key(ti, tj, 0) for ti in 0:9, tj in 0:9])    # 100 keys
+    for _ in 1:20, key in keys
+        insert_tile!(map, key)
+    end
+    n = tile_count(map)
+    @test n == SmashMPM.count_limit(map)               # saturated, but not inflated by repeats
+    @test n <= SmashMPM.capacity(map)
+    # registered keys still resolve to valid, unique tiles (or 0 if the pool was full)
+    found = filter(>(0), [find_tile(map, key) for key in keys])
+    @test sort(found) == collect(1:SmashMPM.max_tiles(map))
+end
+
+@testset "SparseGrid grows the pool to the needed size" begin
+    T = Float64
+    dx = one(T)
+    spline = QuadraticSpline()
+    # filled sphere of particles, many particles per tile, far more tiles than the
+    # initial hash table can hold (the case that used to inflate the pool ~30x)
+    pts = SVector{3, T}[]
+    for i in -24:24, j in -24:24, k in -24:24
+        p = SVector{3, T}(i, j, k) .* 2dx
+        sum(abs2, p) <= (48dx)^2 && push!(pts, p)
+    end
+    pos_sa = StructArray{SVector{3, T}}((x=[p[1] for p in pts], y=[p[2] for p in pts], z=[p[3] for p in pts]))
+    sets = ((particles=(pos=pos_sa,),),)
+
+    exact = SmashMPM.count_tiles(pts, dx, zero(SVector{3, T}), spline)
+    grid  = SparseGrid(dx, zero(SVector{3, T}); max_tiles=64)
+    @test exact > 2 * SmashMPM.capacity(grid.map_write)       # hash table overflows
+
+    n = activate_tiles!(grid, sets, spline)
+    pool = size(grid.state_write.mass, 2)
+    @test n == exact
+    @test missed_count(grid.map_write) == 0
+    @test exact <= pool <= ceil(Int, 1.25 * exact)              # headroom only, no blow-up
+    @test SmashMPM.max_tiles(grid.map_write) == pool            # map and pool stay consistent
+
+    # a second activation on the same grid (after a reset) needs no further growth
+    grid_reset!(grid)
+    grid_reset!(grid)
+    @test activate_tiles!(grid, sets, spline) == exact
+    @test size(grid.state_write.mass, 2) == pool
+end
+
 @testset "SparseGrid with OpenDomain" begin
     T = Float64
     dx = 0.5
@@ -238,6 +285,29 @@ end
             @test close_to(ps_s.particles.pos.z, ps_d.particles.pos.z)
         end
         @test sum(to_dense(sparse.grid).state_read.mass) ≈ sum(dense.grid.state_read.mass)
+    end
+
+    @testset "export: extract_velocities and HDF5 output" begin
+        dense = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0))
+        open  = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid))
+        box   = build_mpm_model(bodies, sparse_setup)
+        for m in (dense, open, box), _ in 1:3
+            SmashMPM.step!(m)
+        end
+        for sparse in (open, box), (ps_d, ps_s) in zip(dense.particle_sets, sparse.particle_sets)
+            v_d, B_d = SmashMPM.extract_velocities(dense.grid, ps_d, dense.shapefunction)
+            v_s, B_s = SmashMPM.extract_velocities(sparse.grid, ps_s, sparse.shapefunction)
+            @test maximum(norm.(v_s .- v_d)) <= 1e-9 * maximum(norm.(v_d))
+            @test maximum(norm.(B_s .- B_d)) <= 1e-9 * maximum(norm.(B_d))
+        end
+
+        # complete HDF5 snapshot incl. the (densified) grid
+        dir = mktempdir()
+        exporter = HDF5Exporter(output_dir=dir, filename_prefix="sparse_", export_grid=true)
+        path = write_output(exporter, box, 3)
+        @test isfile(path)
+        @test isfile(joinpath(dir, "sparse_000003.xmf"))
+        rm(dir; recursive=true)
     end
 
     @testset "OpenDomain gives the same particle motion" begin

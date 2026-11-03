@@ -214,30 +214,56 @@ function register_tiles!(map::AbstractTileMap, grid::SparseGrid, positions, spli
 end
 
 
+"""Headroom of a grown tile pool over the counted tiles (as in `build_mpm_model`)."""
+const TILE_POOL_HEADROOM = 5 // 4
+
+pool_tiles(grid::SparseGrid) = size(grid.state_write.mass, 2)
+
 """
     activate_tiles!(grid, particle_sets, spline)
 
 Allocate the write-grid tiles that the coming G2P2G step can scatter into.
 Grows the (still empty) write pool if it is too small.
+
+Growing happens in at most two stages:
+  1. If the tile map was saturated, `tile_count` is only a lower bound. Then only
+     the (small) map is enlarged and the tiles are counted again; the large
+     nodal pool is not touched.
+  2. With an exact count `n`, pool and map are reallocated for `n` tiles plus
+     `TILE_POOL_HEADROOM`, and the tiles are registered once more.
 """
 function activate_tiles!(grid::SparseGrid{T}, particle_sets, spline) where {T}
+    backend  = KernelAbstractions.get_backend(grid.state_write.mass)
+    MapType  = typeof(grid.map_write)
+    domain_max = max_domain_tiles(grid.domain)
+
     while true
         foreach(particle_sets) do p_set
             register_tiles!(grid.map_write, grid, p_set.particles.pos, spline, ACTIVATION_MARGIN)
         end
 
         n = tile_count(grid.map_write)
-        if n <= max_tiles(grid.map_write)
+        if n <= pool_tiles(grid) && max_tiles(grid.map_write) == pool_tiles(grid)
             grid.n_active_write = n
             return n
         end
 
-        # Pool too small. The write grid holds no data yet, so just replace it.
-        backend = KernelAbstractions.get_backend(grid.state_write.mass)
-        new_max = min(2 * n, max_domain_tiles(grid.domain))
-        @info "SparseGrid: growing tile pool from $(max_tiles(grid.map_write)) to $new_max tiles"
-        grid.state_write = _allocate_tile_pool(backend, T, new_max)
-        grid.map_write   = new_tile_map(typeof(grid.map_write), backend, new_max)
+        if n >= count_limit(grid.map_write)
+            # Stage 1: saturated map, true tile count unknown. Recount with a larger map.
+            new_map_max = min(4 * max_tiles(grid.map_write), domain_max)
+            @debug "SparseGrid: tile map saturated at $n tiles, recounting with room for $new_map_max"
+            grid.map_write = new_tile_map(MapType, backend, new_map_max)
+            continue
+        end
+
+        # Stage 2: exact count. The write grid holds no data yet, so just replace it.
+        new_max = n <= pool_tiles(grid) ? pool_tiles(grid) :     # fits after all: keep the pool
+                  min(max(ceil(Int, n * TILE_POOL_HEADROOM), n), domain_max)
+        if new_max != pool_tiles(grid)
+            @info "SparseGrid: growing tile pool from $(pool_tiles(grid)) to $new_max tiles ($n active)"
+            grid.state_write = _allocate_tile_pool(backend, T, new_max)
+        end
+        grid.map_write = new_tile_map(MapType, backend, new_max)
     end
 end
 
