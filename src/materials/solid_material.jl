@@ -312,3 +312,5 @@ include("elasticity/hyperelasticity.jl")
 include("elasticity/hypoelasticity.jl")
 
 include("viscosity/bulk_viscosity.jl")
+
+include("plasticity/j2_plasticity.jl")

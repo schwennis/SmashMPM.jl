@@ -8,20 +8,23 @@
 # Only tensor-valued elastic states need ONE extra method in _elastic_fields below
 # (unknown types are skipped with a warning).
 #
-# Datasets (names are paths inside the HDF5 file):
-#   mat_state/c                       (N,)    longitudinal wave speed
-#   mat_state/e                       (N,)    specific internal energy
-#   mat_state/eps_p                   (N,)    equivalent plastic strain (0 without plasticity)
-#   mat_state/damage                  (N,)    damage variable D (0 without damage)
-#   mat_state/eos_state/p             (N,)    pressure
-#   mat_state/elastic_state/s         (N,9)   deviatoric stress    (HypoElasticity)
-#   mat_state/elastic_state/bbar_e    (N,9)   elastic isochoric left Cauchy-Green b̄ₑ (HyperElasticity)
+# Datasets (names are paths inside the HDF5 file, below the group `particles/`):
+#   particles/mat_state/c                       (N,)    longitudinal wave speed
+#   particles/mat_state/e                       (N,)    specific internal energy
+#   particles/mat_state/eps_p                   (N,)    equivalent plastic strain (0 without plasticity)
+#   particles/mat_state/damage                  (N,)    damage variable D (0 without damage)
+#   particles/mat_state/eos_state/p             (N,)    pressure
+#   particles/mat_state/elastic_state/s         (N,9)   deviatoric stress    (HypoElasticity)
+#   particles/mat_state/elastic_state/bbar_e    (N,9)   elastic isochoric left Cauchy-Green b̄ₑ (HyperElasticity)
+#
+# The field names produced here ("mat_state/c", ...) are relative to that group;
+# the exporter prepends "particles/".
 #
 # Changes compared to the old SolidMaterial export:
 #   - eos_state/e (Tillotson) is now mat_state/e and exists for every EoS
 #   - strength_state/{s,b} is now elastic_state/{s,bbar_e}
 #
-# (F and affine are written by the exporter itself.)
+# (position, velocity, F, affine, mass, volume, id are written by the exporter itself.)
 # 3x3 matrices are stored flat and row-major, like F and affine:
 #   [A11 A12 A13 A21 A22 A23 A31 A32 A33]  -> Julia array (9, N)
 
@@ -129,7 +132,12 @@ function _write_dataset(file, name::String, arr::AbstractArray, compression_leve
     end
 end
 
-function _xdmf_particle_attributes(h5_filename::String, fields::AbstractDict, total::Int)
+"""
+XDMF `Attribute` blocks for the particle fields. `group` is the HDF5 group that
+contains the datasets (the exporter writes them below `particles/`).
+"""
+function _xdmf_particle_attributes(h5_filename::String, fields::AbstractDict, total::Int;
+                                   group::String = "particles")
     io = IOBuffer()
     for name in sort!(collect(keys(fields)))
         arr   = fields[name]
@@ -139,7 +147,7 @@ function _xdmf_particle_attributes(h5_filename::String, fields::AbstractDict, to
         print(io, """
               <Attribute Name="$(replace(name, "/" => "."))" AttributeType="$(atype)" Center="Node">
                 <DataItem Dimensions="$(dims)" NumberType="Float" Precision="$(sizeof(eltype(arr)))" Format="HDF">
-                  $(h5_filename):/$(name)
+                  $(h5_filename):/$(group)/$(name)
                 </DataItem>
               </Attribute>
         """)

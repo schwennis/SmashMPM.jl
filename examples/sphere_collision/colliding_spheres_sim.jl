@@ -39,7 +39,6 @@ time_to_collision = (INITIAL_SEPARATION - 2 * SPHERE_RADIUS) / IMPACT_VELOCITY
 # ---------------------------------------------------------------------------- #
 const DX = T(0.03)
 const T_MAX = T(3*time_to_collision)  # Run simulation for thrice the time to collision
-const PADDING = 3
 const PPC_1D = 2
 const cfl_number = T(0.4)
 const DT_MAX = T(1e-3)
@@ -88,7 +87,7 @@ bodies = (sphere1_body, sphere2_body)
 
 exporter = HDF5Exporter(
     output_dir="output",
-    filename_prefix = "colliding_spheres",
+    filename_prefix = "colliding_spheres_",
     write_xdmf = true,
     compression_level = 3,
     export_particles = true,
@@ -101,8 +100,6 @@ sim_setup = SimulationSetup(
     domain=DOMAIN,
     grid_type=SparseGrid,
     dx=DX,
-    padding=PADDING,
-    buffer_width=BUFFER_WIDTH,
     cfl_number=cfl_number,
     t_max=T_MAX,
     dt_max=DT_MAX,

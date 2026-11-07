@@ -44,5 +44,10 @@ using KernelAbstractions
 
     @testset "Conservation Tests" begin
         include("test_conservation/test_rotating_cube.jl")
+        include("test_conservation/test_rotating_cube_sparse.jl")
+    end
+
+    @testset "HDF5 Export" begin
+        include("test_hdf5_export.jl")
     end
 end
