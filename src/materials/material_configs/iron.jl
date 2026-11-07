@@ -1,17 +1,17 @@
 """
-    Iron(::Type{T}=Float64; eos=:tillotson, elasticity=:hypoelastic,
-         plasticity=NullPlasticity(), damage=NoDamage(), viscosity=NoViscosity())
+    Iron(::Type{T}=Float64; eos=:tillotson, elasticity=:hypoelastic, damage=:no_damage,
+         plasticity=NullPlasticity(), viscosity=NoViscosity())
 
-Iron with selectable EoS and elasticity (symbols, parameters provided).
-Plasticity, damage, and artificial viscosity are passed as ready-made instances, e.g.
-`plasticity = J2Plasticity(; σ_y0 = 2.5e8, H = 1.0e9)`.
+Iron with selectable EoS, elasticity and damage (symbols, parameters provided).
+`damage` also accepts a ready-made instance. Plasticity and artificial viscosity are
+passed as ready-made instances, e.g. `plasticity = J2Plasticity(; σ_y0 = 2.5e8, H = 1.0e9)`.
 """
 function Iron(
     ::Type{T} = Float64;
     eos::Symbol = :tillotson,
     elasticity::Symbol = :hypoelastic,
+    damage::Union{Symbol, AbstractDamage} = :no_damage,
     plasticity::AbstractPlasticity = NullPlasticity(),
-    damage::AbstractDamage = NoDamage(),
     viscosity::AbstractArtificialViscosity = NoViscosity(),
 ) where {T<:AbstractFloat}
 
@@ -22,7 +22,7 @@ function Iron(
     # ---------------------------------------------------------------------------- #
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            ρ_ref,       # ρ  (kg/m^3)
+            ρ_ref,
             T(128.0e9),  # A   (Pa)
             T(105.0e9),  # B   (Pa)
             T(5.0),      # α
@@ -51,6 +51,24 @@ function Iron(
         error("Unknown elasticity model for iron: :$elasticity")
     end
 
+    # ---------------------------------------------------------------------------- #
+    #                                    Damage                                    #
+    # ---------------------------------------------------------------------------- #
+    damage_inst = if damage isa AbstractDamage
+        damage
+    elseif damage === :grady_kipp
+        GradyKippDamage{T}(
+            E     = T(211.0e9),
+            m     = 9.0,
+            k     = 1.0e31,           # σ_t = 350 MPa at V_ref = 1 cm^3
+            n_tot = 1.0e10,
+        )
+    elseif damage === :no_damage
+        NoDamage()
+    else
+        error("Unknown damage model for iron: :$damage")
+    end
+
     return SolidMaterial(; eos = eos_inst, elasticity = el_inst,
-                         plasticity, damage, viscosity, ρ = ρ_ref)
+                         plasticity, damage = damage_inst, viscosity, ρ = ρ_ref)
 end

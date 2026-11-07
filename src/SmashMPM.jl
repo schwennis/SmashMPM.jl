@@ -3,6 +3,7 @@ module SmashMPM
 using StructArrays
 using StaticArrays
 using LinearAlgebra
+using Random
 
 using KernelAbstractions
 using Adapt
@@ -28,7 +29,8 @@ export TillotsonEOS, TillotsonState                                 # Tillotson 
 export HypoElasticStrengthModel, HypoElasticStrengthModelState      # Hypoelastic strength model
 export HyperElasticStrengthModel, HyperElasticStrengthModelState    # Hyperelastic strength model
 export BulkViscosity
-export J2Plasticity, J2PlasticState
+export J2Plasticity, J2PlasticityState
+export GradyKippDamage, GradyKippState
 # Material configs
 export Basalt, Iron, Aluminum
 

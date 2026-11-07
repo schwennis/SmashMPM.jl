@@ -20,6 +20,10 @@ end
     include("materials/viscosity/test_bulk_viscosity.jl")
 end
 
+@testset "Damage Models" begin
+    include("materials/damage/test_grady_kipp.jl")
+end
+
 @testset "Modular SolidMaterial Pipeline" begin
     include("materials/test_solidmaterial.jl")
 end

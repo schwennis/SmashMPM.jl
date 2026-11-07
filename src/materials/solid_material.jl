@@ -19,7 +19,7 @@
 #   3. Elastic Predictor    s_tr, el_tr, G = elastic_trial(elasticity, elastic_state, kin)
 #   4. Plastic Corrector    s, pl = return_map(plasticity, plastic_state, s_tr, G, th, kin)
 #                           el = consistent_elastic_state(elasticity, el_tr, s, kin)
-#   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin)
+#   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin, st.c)
 #                           s = degradation(damage, dm) * s
 #   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
 #   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D))
@@ -82,6 +82,14 @@ Initialize the state of a material component.
 - The initialized state of the material component.
 """
 @inline init_state(model_component) = _not_implemented(:init_state, model_component)
+
+"""
+    init_state(model_component, rng, n_p, V)
+
+Initialize the state of one of the `n_p` particles of a body with volume `V`.
+Overwrite this for components with randomly distributed initial states.
+"""
+init_state(model_component, rng, n_p, V) = init_state(model_component)
 
 
 # Equation of State ----------------------------------------------------------- #
@@ -154,9 +162,10 @@ Returns:
 
 # Damage --------------------------------------------------------------- #
 """
-    update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics) -> damage_state_write
+    update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics, c) -> damage_state_write
+`c` is the longitudinal wave speed of the previous time step.
 """
-@inline update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics) = _not_implemented(:update_damage, damage)
+@inline update_damage(damage::AbstractDamage, damage_state, s, pl_state, thermo, kin::Kinematics, c) = _not_implemented(:update_damage, damage)
 
 """
     degradation(damage::AbstractDamage, damage_state) -> g ∈ [0,1]
@@ -187,7 +196,7 @@ struct NullPlasticity <: AbstractPlasticity end
 
 struct NoDamage <: AbstractDamage end
 @inline init_state(::NoDamage) = NullState()
-@inline update_damage(::NoDamage, damage_state, s, pl_state, thermo, kin::Kinematics) = damage_state
+@inline update_damage(::NoDamage, damage_state, s, pl_state, thermo, kin::Kinematics, c) = damage_state
 @inline degradation(::NoDamage, damage_state) = true    # true acts like type neutral 1
 
 struct NoViscosity <: AbstractArtificialViscosity end
@@ -240,6 +249,18 @@ end
     )
 end
 
+function initial_material_state(mat::SolidMaterial, rng, n_p, V)
+    st = initial_material_state(mat)
+    return SolidMaterialState(
+        c             = st.c,
+        e             = st.e,
+        eos_state     = st.eos_state,
+        elastic_state = st.elastic_state,
+        plastic_state = init_state(mat.plasticity, rng, n_p, V),
+        damage_state  = init_state(mat.damage, rng, n_p, V),
+    )
+end
+
 @inline soundspeed(::SolidMaterial, mat_state::SolidMaterialState) = mat_state.c
 
 
@@ -252,7 +273,7 @@ end
 #   3. Elastic Predictor    s_tr, el_tr, G = elastic_trial(elasticity, elastic_state, kin)
 #   4. Plastic Corrector    s, pl = return_map(plasticity, plastic_state, s_tr, G, th, kin)
 #                           el = consistent_elastic_state(elasticity, el_tr, s, kin)
-#   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin)
+#   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin, st.c)
 #                           s = degradation(damage, dm) * s
 #   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
 #   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D))
@@ -275,7 +296,7 @@ end
     el_st          = consistent_elastic_state(mat.elasticity, el_tr, s, kin)
 
     # 5. Damage
-    dm_st = update_damage(mat.damage, st.damage_state, s, pl_st, th, kin)
+    dm_st = update_damage(mat.damage, st.damage_state, s, pl_st, th, kin, st.c)
     g     = degradation(mat.damage, dm_st)
     s     = g * s
 
@@ -314,3 +335,5 @@ include("elasticity/hypoelasticity.jl")
 include("viscosity/bulk_viscosity.jl")
 
 include("plasticity/j2_plasticity.jl")
+
+include("damage/grady_kipp_damage.jl")

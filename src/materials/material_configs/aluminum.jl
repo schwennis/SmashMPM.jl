@@ -1,11 +1,19 @@
+"""
+    Aluminum(::Type{T}=Float64; eos=:tillotson, elasticity=:hypoelastic, damage=:no_damage,
+             plasticity=NullPlasticity(), viscosity=NoViscosity())
+
+Aluminum with selectable EoS, elasticity and damage (symbols, parameters provided).
+`damage` also accepts a ready-made instance. Plasticity and artificial viscosity are
+passed as ready-made instances, e.g. `plasticity = J2Plasticity(; σ_y0 = 2.76e8, H = 6.8e8)`.
+"""
 function Aluminum(
     ::Type{T} = Float64;
     eos::Symbol = :tillotson,
     elasticity::Symbol = :hypoelastic,
+    damage::Union{Symbol, AbstractDamage} = :no_damage,
     plasticity::AbstractPlasticity = NullPlasticity(),
-    damage::AbstractDamage = NoDamage(),
     viscosity::AbstractArtificialViscosity = NoViscosity(),
-) where T
+) where {T<:AbstractFloat}
 
     ρ_ref = T(2700.0)   # kg/m^3
 
@@ -14,19 +22,19 @@ function Aluminum(
     # ---------------------------------------------------------------------------- #
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            ρ_ref,      # ρ  (kg/m^3)
-            T(75.2e9),  # A   (Pa)
-            T(65.0e9),  # B   (Pa)
-            T(5.0),     # α
-            T(5.0),     # β
-            T(5e6),     # E0  (J/kg)
-            T(3e6),     # Eiv (J/kg)
-            T(13.9e6),  # Ecv (J/kg)
-            T(0.5),     # a
-            T(1.63),    # b
+            ρ_ref,
+            T(75.2e9),   # A   (Pa)
+            T(65.0e9),   # B   (Pa)
+            T(5.0),      # α
+            T(5.0),      # β
+            T(5e6),      # E0  (J/kg)
+            T(3e6),      # Eiv (J/kg)
+            T(13.9e6),   # Ecv (J/kg)
+            T(0.5),      # a
+            T(1.63),     # b
         )
     else
-        error("Unknown EoS for aluminum: $eos")
+        error("Unknown EoS for aluminum: :$eos")
     end
 
     # ---------------------------------------------------------------------------- #
@@ -38,9 +46,27 @@ function Aluminum(
     elseif elasticity === :hypoelastic
         HypoElasticity{T}(μ)
     else
-        error("Unknown elasticity model for aluminium: :$elasticity")
+        error("Unknown elasticity model for aluminum: :$elasticity")
+    end
+
+    # ---------------------------------------------------------------------------- #
+    #                                    Damage                                    #
+    # ---------------------------------------------------------------------------- #
+    damage_inst = if damage isa AbstractDamage
+        damage
+    elseif damage === :grady_kipp
+        GradyKippDamage{T}(
+            E     = T(69.0e9),
+            m     = 9.0,
+            k     = 1.3e27,           # σ_t = 310 MPa at V_ref = 1 cm^3
+            n_tot = 1.0e10,
+        )
+    elseif damage === :no_damage
+        NoDamage()
+    else
+        error("Unknown damage model for aluminum: :$damage")
     end
 
     return SolidMaterial(; eos = eos_inst, elasticity = el_inst,
-                         plasticity, damage, viscosity, ρ = ρ_ref)
+                         plasticity, damage = damage_inst, viscosity, ρ = ρ_ref)
 end

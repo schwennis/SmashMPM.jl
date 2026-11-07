@@ -36,6 +36,7 @@ resolve_domain(::OpenDomain, bc::AbstractBoundaryCondition, N) =
     boundary_condition::BC = NullBoundaryCondition()
     external_force::EF = NoExternalForce()
     shapefunction::SF = QuadraticSpline()
+    seed::Int = 0                       # seed for randomly initialized material states (e.g. flaws)
 
     # Export Settings
     exporter::E = NoExporter()
@@ -106,16 +107,18 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     
     # Create Particle Sets (+ device copies of the data needed for the initial P2G)
     particle_counter = 1
+    rng = Random.Xoshiro(setup.seed)
     built = map(bodies_data) do data
         mat_state_type = typeof(initial_material_state(data.material))
         n_p = length(data.pos)
+        V_body = sum(data.vol)
         
         # Lokale Arrays pro Body auf CPU
         particle_vector = Vector{Particle{T, mat_state_type}}(undef, n_p)
         soundspeeds_cpu = Vector{T}(undef, n_p)
 
         @inbounds for i in 1:n_p
-            state_i = initial_material_state(data.material)
+            state_i = initial_material_state(data.material, rng, n_p, V_body)
             particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], state_i)
             soundspeeds_cpu[i] = soundspeed(data.material, state_i)
             particle_counter += 1

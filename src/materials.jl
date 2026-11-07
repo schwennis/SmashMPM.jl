@@ -11,6 +11,15 @@ function material_model(material::AbstractMaterial, mat_state, F, C, V0, m, dt, 
 end
 
 
+"""
+    initial_material_state(material, rng, n_p, V)
+
+Initial state of one of the `n_p` particles of a body with volume `V`.
+Defaults to the deterministic `initial_material_state(material)`.
+"""
+initial_material_state(material::AbstractMaterial, rng, n_p, V) = initial_material_state(material)
+
+
 # ---------------------------------------------------------------------------- #
 #                        Material Model Implementations                        #
 # ---------------------------------------------------------------------------- #
