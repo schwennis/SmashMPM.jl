@@ -32,7 +32,7 @@ export BulkViscosity
 export J2Plasticity, J2PlasticityState
 export GradyKippDamage, GradyKippState
 # Material configs
-export Basalt, Iron, Aluminum
+export Basalt, Iron, Aluminum, Nylon
 
 include("shapefunctions.jl")
 export QuadraticSpline
