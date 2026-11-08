@@ -22,16 +22,17 @@ function Aluminum(
     # ---------------------------------------------------------------------------- #
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            ρ_ref,
-            T(75.2e9),   # A   (Pa)
-            T(65.0e9),   # B   (Pa)
-            T(5.0),      # α
-            T(5.0),      # β
-            T(5e6),      # E0  (J/kg)
-            T(3e6),      # Eiv (J/kg)
-            T(13.9e6),   # Ecv (J/kg)
-            T(0.5),      # a
-            T(1.63),     # b
+            ρ0 = ρ_ref,
+            A = T(75.2e9),
+            B = T(65.0e9),
+            α = T(5.0),
+            β = T(5.0),
+            E0 = T(5e6),
+            Eiv = T(3e6),
+            Ecv = T(13.9e6),
+            a = T(0.5),
+            b = T(1.63),
+            ρiv = zero(T)
         )
     else
         error("Unknown EoS for aluminum: :$eos")

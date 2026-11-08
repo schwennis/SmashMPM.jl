@@ -12,7 +12,11 @@
     Ecv::T  # Critical energy for expanded state
     a::T    # Tillotson parameter a
     b::T    # Tillotson parameter b
+    ρiv::T = zero(ρ0)   # Incipient vaporization density (0 = disabled)
 end
+
+TillotsonEOS{T}(ρ0, A, B, α, β, E0, Eiv, Ecv, a, b) where {T} =
+    TillotsonEOS{T}(ρ0, A, B, α, β, E0, Eiv, Ecv, a, b, zero(T))
 
 @kwdef struct TillotsonState{T} <: AbstractEoSState
     p::T    # Pressure
@@ -42,10 +46,12 @@ end
 
     if ρ_safe >= ρ0
         p, dp_dρ, dp_de = _tillotson_condensed(eos, ρ_safe, e_safe)
-    elseif e_safe < Eiv
-        p, dp_dρ, dp_de = _tillotson_condensed(eos, ρ_safe, e_safe)
     elseif e_safe > Ecv
         p, dp_dρ, dp_de = _tillotson_expanded(eos, ρ_safe, e_safe)
+    elseif ρ_safe < eos.ρiv
+        p, dp_dρ, dp_de = _tillotson_vapor(eos, ρ_safe, e_safe)
+    elseif e_safe < Eiv
+        p, dp_dρ, dp_de = _tillotson_condensed(eos, ρ_safe, e_safe)
     else
         pc, dp_dρ_c, dp_de_c = _tillotson_condensed(eos, ρ_safe, e_safe)
         pe, dp_dρ_e, dp_de_e = _tillotson_expanded(eos, ρ_safe, e_safe)
@@ -102,6 +108,13 @@ end
     dp_de = (a + ω) * ρ + ρ * e * dω_de
 
     return p, dp_dρ, dp_de
+end
+
+# Low energy vapor expansion (ρ < ρiv, e < Ecv): condensed form without B μ^2
+@inline function _tillotson_vapor(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
+    p, dp_dρ, dp_de = _tillotson_condensed(eos, ρ, e)
+    μ = ρ / eos.ρ0 - one(T)
+    return p - eos.B * μ^2, dp_dρ - T(2) * eos.B * μ / eos.ρ0, dp_de
 end
 
 @inline function _tillotson_expanded(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}

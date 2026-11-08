@@ -23,16 +23,17 @@ function Nylon(
 # ---------------------------------------------------------------------------- #
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            ρ_ref,
-            T(10.1e9),   # A   (Pa)
-            T(33.8e9),   # B   (Pa)
-            T(10.0),     # α
-            T(5.0),      # β
-            T(7.0e6),    # E0  (J/kg)
-            T(2.0e6),    # Eiv (J/kg)
-            T(2.4e6),    # Ecv (J/kg)
-            T(0.6),      # a
-            T(2.0),      # b
+            ρ0 = ρ_ref,
+            A = T(10.1e9),   # A   (Pa)
+            B = T(33.8e9),   # B   (Pa)
+            α = T(10.0),     # α
+            β = T(5.0),      # β
+            E0 = T(7.0e6),    # E0  (J/kg)
+            Eiv = T(2.0e6),    # Eiv (J/kg)
+            Ecv = T(2.4e6),    # Ecv (J/kg)
+            a = T(0.6),      # a
+            b = T(2.0),      # b
+            ρiv = T(1100.0),   # ρiv (kg/m^3)
         )
     else
         error("Unknown EoS for nylon: :$eos")

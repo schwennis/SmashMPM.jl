@@ -22,16 +22,17 @@ function Iron(
     # ---------------------------------------------------------------------------- #
     eos_inst = if eos === :tillotson
         TillotsonEOS{T}(
-            ρ_ref,
-            T(128.0e9),  # A   (Pa)
-            T(105.0e9),  # B   (Pa)
-            T(5.0),      # α
-            T(5.0),      # β
-            T(9.5e6),    # E0  (J/kg)
-            T(2.4e6),    # Eiv (J/kg)
-            T(8.67e6),   # Ecv (J/kg)
-            T(0.5),      # a
-            T(0.15),     # b
+            ρ0 = ρ_ref,
+            A = T(128.0e9),
+            B = T(105.0e9),
+            α = T(5.0),
+            β = T(5.0),
+            E0 = T(9.5e6),
+            Eiv = T(2.4e6),
+            Ecv = T(8.67e6),
+            a = T(0.5),
+            b = T(0.15),
+            ρiv = zero(T)
         )
     elseif eos === :murnaghan
         MurnaghanEOS{T}(ρ_ref, T(113.5e9), T(5.32), T(0.9))
