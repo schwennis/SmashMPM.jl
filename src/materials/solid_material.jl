@@ -22,7 +22,7 @@
 #   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin, st.c)
 #                           s = degradation(damage, dm) * s
 #   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
-#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D))
+#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D)),  p_n degraded like σ
 #   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)
 #   9. Assembly of σ        σ = s - (p + q) * I
 #
@@ -276,7 +276,7 @@ end
 #   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin, st.c)
 #                           s = degradation(damage, dm) * s
 #   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
-#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D))
+#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D)),  p_n degraded like σ
 #   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)
 #   9. Assembly of σ        σ = s - (p + q) * I
 @inline function material_model(mat::SolidMaterial, st::SolidMaterialState, F::SMatrix{3,3,T,9}, C::SMatrix{3,3,T,9}, V0::T, m::T, dt::T, dx::T) where T
@@ -304,7 +304,8 @@ end
     q = viscous_pressure(mat.viscosity, kin, st.c)
 
     # 7. Energy Update (generic)
-    e = st.e + dt / ρ * (dot(s, D) - (th.p + q) * tr(D))
+    p_n = degrade_pressure(mat.damage, dm_st, T(th.p))
+    e   = st.e + dt / ρ * (dot(s, D) - (p_n + q) * tr(D))
 
     # 8. EoS
     eos_st, c_b = update_eos(mat.eos, st.eos_state, ρ, e)

@@ -15,7 +15,7 @@ function Basalt(
     viscosity::AbstractArtificialViscosity = NoViscosity(),
 ) where {T<:AbstractFloat}
 
-    ρ_ref = T(2860.0)   # kg/m^3
+    ρ_ref = T(2790.0)   # kg/m^3
 
 # ---------------------------------------------------------------------------- #
 #                               Equation of State                              #
@@ -43,7 +43,7 @@ function Basalt(
 # ---------------------------------------------------------------------------- #
 #                                  Elasticity                                  #
 # ---------------------------------------------------------------------------- #
-    μ = T(2.27e10)
+    μ = T(2.31e10)
     el_inst = if elasticity === :hyperelastic
         HyperElasticity{T}(μ)
     elseif elasticity === :hypoelastic

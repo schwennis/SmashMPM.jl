@@ -1,4 +1,19 @@
-# using Printf
+using Printf
+
+"""
+    format_eta(seconds) -> String
+
+Formats duration into a string containing dd:hh:mm or hh:mm depending on the duration.
+"""
+function format_eta(seconds::Real)
+    (isfinite(seconds) && seconds >= 0) || return "--:--"
+    total_minutes = round(Int, seconds / 60)
+    days, rem_minutes = divrem(total_minutes, 24 * 60)
+    hours, minutes = divrem(rem_minutes, 60)
+    return days > 0 ? @sprintf("%d:%02d:%02d", days, hours, minutes) :
+                      @sprintf("%02d:%02d", hours, minutes)
+end
+
 
 function step!(model::MPMModel)
     dt = min(courant_timestep(model), model.t_max - model.t)
@@ -44,12 +59,12 @@ function solve!(model::MPMModel, setup::SimulationSetup)
 
         if !(setup.exporter isa NoExporter) && (time_since_last_export >= setup.export_time_interval || model.t ≈ model.t_max)
             elapsed_real_time = time() - real_time_start
-            eta = (elapsed_real_time / (model.t - t_start) * (model.t_max - model.t))/3600
-
+            eta_seconds = elapsed_real_time / (model.t - t_start) * (model.t_max - model.t)
 
             time_since_last_export = T(0.0)
             write_output(setup.exporter, model, step, model.t)
-            println("Exported output at time $(round(model.t, digits=4)) (step $step, current dt: $(@sprintf("%.2e", dt))). eta: $(round(eta, digits=2))h")
+            println("Exported output at time $(round(model.t, digits=4)) (step $step, current dt: $(@sprintf("%.2e", dt))). eta: $(format_eta(eta_seconds))")
+            flush(stdout)
         end
     end
 end
