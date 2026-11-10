@@ -117,6 +117,9 @@ function populate_dense_grid!(grid::DenseGrid{T}, backend::Backend) where {T}
         copyto!(state.momentum.x, fill(T(1.0),   dims))
         copyto!(state.momentum.y, fill(T(-2.0),  dims))
         copyto!(state.momentum.z, fill(T(0.5),   dims))
+        copyto!(state.force.x,    fill(T(0.0),   dims))
+        copyto!(state.force.y,    fill(T(0.0),   dims))
+        copyto!(state.force.z,    fill(T(0.0),   dims))
     end
     KernelAbstractions.synchronize(backend)
     return grid
@@ -131,6 +134,9 @@ function _populate_active_write!(grid::SparseGrid{T}) where {T}
     fill!(view(state.momentum.x, :, used), T(1.0))
     fill!(view(state.momentum.y, :, used), T(-2.0))
     fill!(view(state.momentum.z, :, used), T(0.5))
+    fill!(view(state.force.x,    :, used), T(0.0))
+    fill!(view(state.force.y,    :, used), T(0.0))
+    fill!(view(state.force.z,    :, used), T(0.0))
     return grid
 end
 
@@ -292,7 +298,7 @@ end
 """Zero the write state of the grid (for the SparseGrid only the active tiles)."""
 function clear_write_state!(grid::DenseGrid)
     state = grid.state_write
-    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z)
+    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
         fill!(field, zero(eltype(field)))
     end
     return nothing
@@ -301,7 +307,7 @@ end
 function clear_write_state!(grid::SparseGrid)
     state = grid.state_write
     used  = 1:grid.n_active_write
-    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z)
+    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
         fill!(view(field, :, used), zero(eltype(field)))
     end
     return nothing

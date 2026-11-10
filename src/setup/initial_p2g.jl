@@ -9,6 +9,8 @@
     base_node = get_support_base(spline, grid_pos)
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
 
+    ws = soundspeeds[p_idx] + norm(vel)
+
     for di in iterator_i, dj in iterator_j, dk in iterator_k
         i = base_node[1] + di
         j = base_node[2] + dj
@@ -28,21 +30,20 @@
         @atomic :monotonic grid_state.momentum.x[i, j, k] += p_update[1]
         @atomic :monotonic grid_state.momentum.y[i, j, k] += p_update[2]
         @atomic :monotonic grid_state.momentum.z[i, j, k] += p_update[3]
-        ws = soundspeeds[p_idx] + norm(vel)
         atomic_max!(grid_state.wave_speed, i, j, k, ws)
     end
 end
 
 function initial_p2g!(grid, positions, velocities, affines, masses, soundspeeds, spline)
-    grid_old = grid.state_read
+    grid_state = grid.state_write
     origin = grid.origin
     inv_dx = grid.inv_dx
 
-    backend = KernelAbstractions.get_backend(grid_old.mass)
+    backend = KernelAbstractions.get_backend(grid_state.mass)
 
     kernel = initial_p2g_kernel!(backend)
 
-    kernel(grid_old, positions, velocities, affines, masses, soundspeeds, origin, inv_dx, spline;
+    kernel(grid_state, positions, velocities, affines, masses, soundspeeds, origin, inv_dx, spline;
             ndrange=length(positions))
 
     KernelAbstractions.synchronize(backend)
@@ -114,9 +115,8 @@ end
 # ---------------------------------------------------------------------------- #
 #                       Preparation / finalization per grid                    #
 # ---------------------------------------------------------------------------- #
-# DenseGrid: initial_p2g! writes directly into state_read, nothing to do.
 prepare_initial_p2g!(::DenseGrid, particle_sets, spline)  = nothing
-finalize_initial_p2g!(::DenseGrid, particle_sets, spline) = nothing
+finalize_initial_p2g!(grid::DenseGrid, particle_sets, spline) = grid_reset!(grid)   # Swap write <> read
 
 # SparseGrid: activate the write tiles, scatter into them, then swap them to read
 # (and activate the next write tiles).

@@ -47,6 +47,10 @@ using KernelAbstractions
         include("test_conservation/test_rotating_cube_sparse.jl")
     end
 
+    @testset "AFLIP Tests" begin
+        include("test_aflip.jl")
+    end
+
     @testset "HDF5 Export" begin
         include("test_hdf5_export.jl")
     end

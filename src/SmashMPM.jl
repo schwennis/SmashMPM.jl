@@ -16,6 +16,9 @@ using Printf
 
 include("helpers.jl")
 
+include("transfer_schemes.jl")
+export APIC, AFLIP
+
 include("materials.jl")
 export AbstractMaterial, AbstractMaterialState, NoMaterialState     # Abstract types
 export material_model, soundspeed, initial_material_state   # Material model interface

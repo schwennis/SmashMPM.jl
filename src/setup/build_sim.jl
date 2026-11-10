@@ -19,13 +19,14 @@ resolve_domain(::OpenDomain, bc::AbstractBoundaryCondition, N) =
           "Use NullBoundaryCondition for open boundaries or domain = FittedBox().")
 
 
-@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T, E, DM}
+@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T, E, DM, TS}
     # Grid
     dx::T
     grid_type::Type{G} = DenseGrid
     padding::Int = 2
     buffer_width::SVector{3, Int} = zero(SVector{3, Int})
     domain::DM = AutoDomain()           # only used by the SparseGrid
+    transfer_scheme::TS = APIC()
 
     # Properties
     cfl_number::T = typeof(dx)(0.4)
@@ -106,7 +107,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     grid = _build_grid(setup.grid_type, setup, N, origin, all_positions)
     
     # Create Particle Sets (+ device copies of the data needed for the initial P2G)
-    particle_counter = 1
+    particle_counter = UInt32(1)
     rng = Random.Xoshiro(setup.seed)
     built = map(bodies_data) do data
         mat_state_type = typeof(initial_material_state(data.material))
@@ -119,9 +120,17 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
 
         @inbounds for i in 1:n_p
             state_i = initial_material_state(data.material, rng, n_p, V_body)
-            particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], state_i)
+            particle_vector[i] = Particle(
+                id=particle_counter, 
+                pos=data.pos[i], 
+                vel=data.vel[i], 
+                mass=data.mass[i], 
+                V0=data.vol[i], 
+                C=data.affine,
+                mat_state=state_i,
+            )
             soundspeeds_cpu[i] = soundspeed(data.material, state_i)
-            particle_counter += 1
+            particle_counter += UInt32(1)
         end
 
         particle_set = setup.particle_set_type(particle_vector, data.material, setup.backend)
@@ -142,6 +151,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     foreach(built) do b
         initial_p2g!(grid, b.pos, b.vel, b.affine, b.mass, b.c, setup.shapefunction)
     end
+    apply_external_forces!(setup.external_force, grid, setup.dt_max)
     finalize_initial_p2g!(grid, particle_sets, setup.shapefunction)
     
     return MPMModel(
@@ -150,6 +160,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
         setup.boundary_condition, 
         setup.external_force, 
         setup.shapefunction, 
+        setup.transfer_scheme,
         setup.backend,
         zero(T), 
         setup.t_max, 

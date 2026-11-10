@@ -89,7 +89,8 @@ end
 function _allocate_tile_pool(backend, ::Type{T}, max_tiles::Int) where {T}
     new_field() = _to_backend(backend, zeros(T, TILE_VOLUME, max_tiles))
     momentum = StructArray{SVector{3, T}}((x=new_field(), y=new_field(), z=new_field()))
-    return StructArray{GridNode{T}}((mass=new_field(), momentum=momentum, wave_speed=new_field()))
+    force = StructArray{SVector{3, T}}((x=new_field(), y=new_field(), z=new_field()))
+    return StructArray{GridNode{T}}((mass=new_field(), momentum=momentum, force=force, wave_speed=new_field()))
 end
 
 
@@ -338,7 +339,7 @@ function grid_reset!(grid::SparseGrid{T}) where {T}
     # Clear the new write grid. Only the tiles that were in use contain data.
     used  = 1:grid.n_active_write
     state = grid.state_write
-    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z)
+    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
         fill!(view(field, :, used), zero(T))
     end
     clear!(grid.map_write)
@@ -398,6 +399,7 @@ function _to_dense_state(state, tile_keys, lo::SVector{3, Int}, N::SVector{3, In
     dense = _allocate_grid_state(CPU(), T, N)
     mass, wave_speed = Array(state.mass), Array(state.wave_speed)
     px, py, pz = Array(state.momentum.x), Array(state.momentum.y), Array(state.momentum.z)
+    fx, fy, fz = Array(state.force.x), Array(state.force.y), Array(state.force.z)
 
     for t in eachindex(tile_keys), l in 1:TILE_VOLUME
         i, j, k = node_index(tile_keys[t], l)
@@ -409,6 +411,9 @@ function _to_dense_state(state, tile_keys, lo::SVector{3, Int}, N::SVector{3, In
         dense.momentum.x[a, b, c] = px[l, t]
         dense.momentum.y[a, b, c] = py[l, t]
         dense.momentum.z[a, b, c] = pz[l, t]
+        dense.force.x[a, b, c]    = fx[l, t]
+        dense.force.y[a, b, c]    = fy[l, t]
+        dense.force.z[a, b, c]    = fz[l, t]
     end
     return dense
 end

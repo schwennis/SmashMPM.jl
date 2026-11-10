@@ -5,7 +5,8 @@
     BC<:AbstractBoundaryCondition, 
     EF<:AbstractExternalForce,
     SF<:AbstractShapeFunction,
-    B
+    TS<:AbstractTransferScheme,
+    B,
 }
 
     particle_sets::MGT
@@ -13,6 +14,7 @@
     boundary_condition::BC = NullBoundaryCondition()
     external_force::EF = NoExternalForce()
     shapefunction::SF = QuadraticSpline()
+    transfer_scheme::TS = APIC()
 
     backend::B = CPU()
 

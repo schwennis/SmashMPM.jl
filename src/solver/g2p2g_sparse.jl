@@ -1,6 +1,9 @@
 # ---------------------------------------------------------------------------- #
 #                           G2P2G on the SparseGrid                            #
 # ---------------------------------------------------------------------------- #
+# Same physics as g2p2g.jl (AFLIP + C-FLIP + spin-fix, force field, BC in the G2P);
+# only the node access goes through (l, t) instead of (i, j, k).
+# half_cross, bc_velocity and bc_bounds are defined in g2p2g.jl.
 
 """
 Presaved tile indices of the (up to 8) tiles that contain the nodes of one stencil.
@@ -50,28 +53,29 @@ end
 # Device function for one particle. Early returns are fine here; the kernel
 # below is only a thin wrapper (and AoSoA / shared-memory variants can reuse it).
 @inline function g2p2g_sparse_particle!(
-    p_idx, particles, material,
+    p_idx, particles, material, scheme,
     state_read, map_read, state_write, map_write, domain,
+    bc, lo, hi, padding,
     origin, inv_dx::T, spline, dt::T
 ) where {T}
     mass_cutoff = sqrt(floatmin(T))  # Threshold to avoid division by zero in G2P
 
     # Extract particle properties
     pos_old = particles.pos[p_idx]
-    mass = particles.mass[p_idx]
-    V0 = particles.V0[p_idx]
+    mass    = particles.mass[p_idx]
+    V0      = particles.V0[p_idx]
 
     grid_pos_old = grid_position(pos_old, inv_dx, origin)
     if !grid_pos_representable(grid_pos_old)    # NaN or outside the key range
         record_miss!(map_write)
-        return nothing
+        return nothing                          # vel, C keep their old values
     end
 
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
     lo_off, hi_off = first(iterator_i), last(iterator_i)
 
-    vel = zero(SVector{3, T})
-    B = zero(SMatrix{3, 3, T, 9})
+    v_star  = zero(SVector{3, T});       v_bar_n = zero(SVector{3, T})
+    B_star  = zero(SMatrix{3, 3, T, 9}); B_n     = zero(SMatrix{3, 3, T, 9})
 
     # ---------------------------------- G2P ---------------------------------- #
     base_node_old = get_support_base(spline, grid_pos_old)
@@ -93,36 +97,61 @@ end
             r_rel = - natural_coords * (1 / inv_dx)
             N = shapefunction(spline, natural_coords)
 
-            v_grid = state_read.momentum[l, t] / m
-            vel = vel + N * v_grid
-            B = B + B_update(spline, N, r_rel, v_grid)
+            p_i  = state_read.momentum[l, t]                                  # p^n_i
+            vi_s = bc_velocity(bc, (p_i + dt * state_read.force[l, t]) / m,
+                               i, j, k, lo, hi, padding)                       # v*_i
+            v_star = v_star + N * vi_s
+            B_star = B_star + B_update(spline, N, r_rel, vi_s)
+            if uses_flip(scheme)
+                vi_n    = p_i / m                                             # v^n_i
+                v_bar_n = v_bar_n + N * vi_n
+                B_n     = B_n + B_update(spline, N, r_rel, vi_n)
+            end
         end
     end
 
-    # Update particle velocity and position
-    pos_new = pos_old + vel * dt
+    Minv   = M_inv(spline, inv_dx)
+    C_star = B_star * Minv
+
+    # ------------------------------ FLIP part ------------------------------- #
+    β = advection_ratio(scheme, T)                    # AFLIP: 0
+    if uses_flip(scheme)                              # APIC never reads v_p, C_p
+        α     = flip_ratio(scheme, T)
+        Δv    = α * (particles.vel[p_idx] - v_bar_n)
+        C_p2g = C_star + α * (particles.C[p_idx] - B_n * Minv) +             # C-FLIP
+                half_cross(-Minv * dt * (one(T) - β) * cross(v_star, Δv))  # spin-fix
+    else
+        Δv    = zero(SVector{3, T})
+        C_p2g = C_star
+    end
+    v_new = v_star + Δv
+
+    # all schemes store v_p and C_p
+    particles.vel.x[p_idx] = v_new[1]
+    particles.vel.y[p_idx] = v_new[2]
+    particles.vel.z[p_idx] = v_new[3]
+    particles.C[p_idx]     = C_p2g
+
+    # ------------------------------- advection ------------------------------ #
+    pos_new = pos_old + dt * (v_star + β * Δv)
     particles.pos.x[p_idx] = pos_new[1]
     particles.pos.y[p_idx] = pos_new[2]
     particles.pos.z[p_idx] = pos_new[3]
 
-    # Finalize affine velocity update
-    C = B * M_inv(spline, inv_dx)
-
-    # Update particle state
-    F_old = particles.F[p_idx]
+    # ------------------------- material (with C*) --------------------------- #
+    F_old     = particles.F[p_idx]
     mat_state = particles.mat_state[p_idx]
 
-    F_new = (one(SMatrix{3, 3, T, 9}) + C * dt) * F_old
+    F_new = (one(SMatrix{3, 3, T, 9}) + C_star * dt) * F_old
     particles.F[p_idx] = F_new
-    σ, mat_state_write = material_model(material, mat_state, F_new, C, V0, mass, dt, 1/inv_dx)
+    σ, mat_state_write = material_model(material, mat_state, F_new, C_star, V0, mass, dt, 1/inv_dx)
     particles.mat_state[p_idx] = mat_state_write
-    J = det(F_new)
-    vol_new = J * V0
+    vol_new = det(F_new) * V0
 
-    soundspeed_new = soundspeed(material, mat_state_write)
-    wavespeed_new = soundspeed_new + norm(vel)
+    wavespeed_new = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
 
-    affine = - dt * vol_new * σ * M_inv(spline, inv_dx) + mass * C
+    affine_p = mass * C_p2g                  # momentum transfer
+    affine_f = -(vol_new * σ * Minv)         # stress force, WITHOUT dt
 
     # ---------------------------------- P2G ---------------------------------- #
     grid_pos_new = grid_position(pos_new, inv_dx, origin)
@@ -152,10 +181,14 @@ end
         N = shapefunction(spline, natural_coords)
 
         @atomic :monotonic state_write.mass[l, t] += N * mass
-        p_update = N * (mass * vel + affine * r_rel)
-        @atomic :monotonic state_write.momentum.x[l, t] += p_update[1]
-        @atomic :monotonic state_write.momentum.y[l, t] += p_update[2]
-        @atomic :monotonic state_write.momentum.z[l, t] += p_update[3]
+        p = N * (mass * v_new + affine_p * r_rel)
+        @atomic :monotonic state_write.momentum.x[l, t] += p[1]
+        @atomic :monotonic state_write.momentum.y[l, t] += p[2]
+        @atomic :monotonic state_write.momentum.z[l, t] += p[3]
+        f = N * (affine_f * r_rel)
+        @atomic :monotonic state_write.force.x[l, t] += f[1]
+        @atomic :monotonic state_write.force.y[l, t] += f[2]
+        @atomic :monotonic state_write.force.z[l, t] += f[3]
         atomic_max!(state_write.wave_speed, l, t, wavespeed_new)
     end
 
@@ -164,31 +197,37 @@ end
 
 
 @kernel function g2p2g_sparse_kernel!(
-    particles, material,
+    particles, material, scheme,
     state_read, map_read, state_write, map_write, domain,
+    bc, lo, hi, padding,
     origin, inv_dx::T, spline, dt::T
 ) where {T}
     p_idx = @index(Global, Linear)
-    g2p2g_sparse_particle!(p_idx, particles, material,
+    g2p2g_sparse_particle!(p_idx, particles, material, scheme,
                            state_read, map_read, state_write, map_write, domain,
+                           bc, lo, hi, padding,
                            origin, inv_dx, spline, dt)
 end
 
 
 # More specific than g2p2g!(::MPMModel{T}, ::T) for the DenseGrid
 function g2p2g!(model::MPMModel{T, MGT, SG}, dt::T) where {T, MGT, SG <: SparseGrid}
-    grid = model.grid
-    spline = model.shapefunction
+    grid    = model.grid
+    spline  = model.shapefunction
+    scheme  = model.transfer_scheme
+    bc      = model.boundary_condition
     backend = model.backend
 
     # The tile lookup assumes that a stencil spans at most 2 tiles per axis
     @assert length(get_support_offsets(spline)[1]) <= TILE_SIZE "Shape function support is wider than TILE_SIZE"
 
+    lo, hi = bc_bounds(bc, grid)     # errors for NoSlipBoundary on an OpenDomain
     kernel = g2p2g_sparse_kernel!(backend)
 
     foreach(model.particle_sets) do particle_set
-        kernel(particle_set.particles, particle_set.material,
+        kernel(particle_set.particles, particle_set.material, scheme,
                grid.state_read, grid.map_read, grid.state_write, grid.map_write, grid.domain,
+               bc, lo, hi, grid.padding,
                grid.origin, grid.inv_dx, spline, dt;
                ndrange=length(particle_set.particles))
     end

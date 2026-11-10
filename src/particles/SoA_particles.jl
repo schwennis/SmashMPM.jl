@@ -12,22 +12,26 @@ end
 function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {T, MS}
     n = length(particle_vector)
 
-    # Fill on CPU
+    # Fill on CPU (StructArray) and then transfer to backend
     ids = Vector{UInt32}(undef, n)
     pos_x = Vector{T}(undef, n); pos_y = Vector{T}(undef, n); pos_z = Vector{T}(undef, n)
+    vel_x = Vector{T}(undef, n); vel_y = Vector{T}(undef, n); vel_z = Vector{T}(undef, n)
     mass   = Vector{T}(undef, n)
     vol    = Vector{T}(undef, n)
     F      = Vector{SMatrix{3,3,T,9}}(undef, n)
+    C      = Vector{SMatrix{3,3,T,9}}(undef, n)
     mstate = Vector{MS}(undef, n)
 
     @inbounds for i in eachindex(particle_vector)
         p = particle_vector[i]
         ids[i] = p.id
         pos_x[i] = p.pos[1]; pos_y[i] = p.pos[2]; pos_z[i] = p.pos[3]
-        mass[i]   = p.mass
-        vol[i]    = p.V0
-        F[i]      = p.F
-        mstate[i] = p.mat_state
+        vel_x[i] = p.vel[1]; vel_y[i] = p.vel[2]; vel_z[i] = p.vel[3]
+        mass[i]     = p.mass
+        vol[i]      = p.V0
+        F[i]        = p.F
+        C[i]        = p.C
+        mstate[i]   = p.mat_state
     end
 
     # transfer to backend; Manual unwrap to prevent type instabilities
@@ -36,12 +40,19 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         y = _to_backend(backend, pos_y),
         z = _to_backend(backend, pos_z)
     ))
+    vel = StructArray{SVector{3,T}}((
+        x = _to_backend(backend, vel_x),
+        y = _to_backend(backend, vel_y),
+        z = _to_backend(backend, vel_z)
+    ))
     return StructArray{Particle{T,MS}}((
         id              = _to_backend(backend, ids),
         pos             = pos,
+        vel             = vel,
         mass            = _to_backend(backend, mass),
         V0  = _to_backend(backend, vol),
         F               = _to_backend(backend, F),
+        C               = _to_backend(backend, C),
         mat_state       = _to_backend(backend, mstate)
     ))
 end

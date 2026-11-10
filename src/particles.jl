@@ -1,21 +1,18 @@
 abstract type AbstractParticleSet end
 
-struct Particle{T, MS<:AbstractMaterialState}
+@kwdef struct Particle{T, MS<:AbstractMaterialState}
     id::UInt32
 
     pos::SVector{3, T}
+    vel::SVector{3, T} = zero(pos)
 
     mass::T
     V0::T
 
-    F::SMatrix{3, 3, T, 9}
+    F::SMatrix{3, 3, T, 9} = one(SMatrix{3, 3, eltype(pos), 9})
+    C::SMatrix{3, 3, T, 9} = zero(F)
 
     mat_state::MS
-end
-
-
-function Particle(id::Int, position::SVector{3, T}, mass::T, V0::T, mat_state::MS) where {T, MS<:AbstractMaterialState}
-    return Particle{T, MS}(UInt32(id), position, mass, V0, one(SMatrix{3, 3, T, 9}), mat_state)
 end
 
 
