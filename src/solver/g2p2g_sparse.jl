@@ -68,7 +68,7 @@ end
     grid_pos_old = grid_position(pos_old, inv_dx, origin)
     if !grid_pos_representable(grid_pos_old)    # NaN or outside the key range
         record_miss!(map_write)
-        return nothing                          # vel, C keep their old values
+        return nothing                          # vel, C, wave_speed keep their old values
     end
 
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
@@ -148,7 +148,8 @@ end
     particles.mat_state[p_idx] = mat_state_write
     vol_new = det(F_new) * V0
 
-    wavespeed_new = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
+    # wave speed for the CFL condition of the next step, stored per particle (no atomic max)
+    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
 
     affine_p = mass * C_p2g                  # momentum transfer
     affine_f = -(vol_new * σ * Minv)         # stress force, WITHOUT dt
@@ -189,7 +190,6 @@ end
         @atomic :monotonic state_write.force.x[l, t] += f[1]
         @atomic :monotonic state_write.force.y[l, t] += f[2]
         @atomic :monotonic state_write.force.z[l, t] += f[3]
-        atomic_max!(state_write.wave_speed, l, t, wavespeed_new)
     end
 
     return nothing

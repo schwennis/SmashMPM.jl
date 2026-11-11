@@ -26,6 +26,7 @@ function _to_cpu_particles(particles)
         F               = Array(particles.F),
         C               = Array(particles.C),
         mat_state       = Array(particles.mat_state),
+        wave_speed      = Array(particles.wave_speed),
     ))
 end
 
@@ -42,7 +43,6 @@ function _to_cpu_grid_state(state)
             y = Array(state.force.y),
             z = Array(state.force.z),
         )),
-        wave_speed = Array(state.wave_speed),
     ))
 end
 
@@ -75,14 +75,14 @@ end
 # File layout (3-vectors / 3x3-matrices are stored flat, row-major, i.e. a
 # Julia array of size (3, N) / (9, N)):
 #
-#   particles/position, velocity, affine, F, mass, volume, id
+#   particles/position, velocity, affine, F, mass, volume, wave_speed, id
 #   particles/mat_state/...                (see extract_particle_fields.jl)
 #
 #   grid/node_index   (3, M)  global node indices (i, j, k), 1-based, may be <= 0
 #   grid/position     (3, M)  node positions
 #   grid/mass         (M,)
 #   grid/momentum     (3, M)
-#   grid/wave_speed   (M,)
+#   grid/force        (3, M)
 #   grid/origin, grid/dx      grid frame (origin = position of node (1, 1, 1))
 #
 # The grid is a flat list of nodes, just like the particles. It is taken from the
@@ -122,6 +122,7 @@ function _export_particle_arrays(cpu_model, ::Type{T}) where {T}
     F        = Matrix{T}(undef, 9, total)
     mass     = Vector{T}(undef, total)
     volume   = Vector{T}(undef, total)
+    wave_speed = Vector{T}(undef, total)
     id       = Vector{Int}(undef, total)
 
     offset = 1
@@ -147,12 +148,13 @@ function _export_particle_arrays(cpu_model, ::Type{T}) where {T}
 
         mass[range]   .= p_set.particles.mass
         volume[range] .= p_set.particles.V0
+        wave_speed[range] .= p_set.particles.wave_speed
         id[range]     .= set_idx
 
         offset += N
     end
 
-    return (; position, velocity, affine, F, mass, volume, id)
+    return (; position, velocity, affine, F, mass, volume, wave_speed, id)
 end
 
 
@@ -164,7 +166,7 @@ _trim_nodes(A::AbstractVector, m::Int) = length(A) == m ? A : A[1:m]
     _export_grid_nodes(grid) -> NamedTuple
 
 Flat node list of the grid (read state) with the fields `node_index`, `position`,
-`mass`, `momentum`, `wave_speed`. For a `SparseGrid` only the nodes of the active
+`mass`, `momentum`, `force`. For a `SparseGrid` only the nodes of the active
 tiles are collected, sorted by tile key (reproducible order).
 """
 function _export_grid_nodes(grid::DenseGrid)
@@ -194,8 +196,7 @@ function _export_grid_nodes(grid::DenseGrid)
     return (; node_index = ijk, position,
               mass       = vec(Array(state.mass)),
               momentum,
-              force,
-              wave_speed = vec(Array(state.wave_speed)))
+              force)
 end
 
 function _export_grid_nodes(grid::SparseGrid)
@@ -207,7 +208,6 @@ function _export_grid_nodes(grid::SparseGrid)
     order     = sortperm(tile_keys)
 
     mass       = Array(view(state.mass,       :, 1:n))
-    wave_speed = Array(view(state.wave_speed, :, 1:n))
     px         = Array(view(state.momentum.x, :, 1:n))
     py         = Array(view(state.momentum.y, :, 1:n))
     pz         = Array(view(state.momentum.z, :, 1:n))
@@ -221,7 +221,6 @@ function _export_grid_nodes(grid::SparseGrid)
     momentum = Matrix{T}(undef, 3, M_max)
     force    = Matrix{T}(undef, 3, M_max)
     out_mass = Vector{T}(undef, M_max)
-    out_ws   = Vector{T}(undef, M_max)
 
     m = 0
     for t in order, l in 1:TILE_VOLUME
@@ -234,7 +233,6 @@ function _export_grid_nodes(grid::SparseGrid)
         position[1, m], position[2, m], position[3, m] = x[1], x[2], x[3]
 
         out_mass[m] = mass[l, t]
-        out_ws[m]   = wave_speed[l, t]
         force[1, m], force[2, m], force[3, m] = Array(state.force.x)[l, t], Array(state.force.y)[l, t], Array(state.force.z)[l, t]
         momentum[1, m], momentum[2, m], momentum[3, m] = px[l, t], py[l, t], pz[l, t]
     end
@@ -243,8 +241,7 @@ function _export_grid_nodes(grid::SparseGrid)
               position   = _trim_nodes(position, m),
               mass       = _trim_nodes(out_mass, m),
               momentum   = _trim_nodes(momentum, m),
-              force      = _trim_nodes(force, m),
-              wave_speed = _trim_nodes(out_ws, m))
+              force      = _trim_nodes(force, m))
 end
 
 # Grid frame and type-specific metadata
@@ -385,6 +382,11 @@ function _write_xdmf_metadata(output_dir::String, prefix::String, padded_idx::St
               $(h5_filename):/particles/volume
             </DataItem>
           </Attribute>
+          <Attribute Name="WaveSpeed" AttributeType="Scalar" Center="Node">
+            <DataItem Dimensions="$(n_particles)" NumberType="Float" Precision="$(precision)" Format="HDF">
+              $(h5_filename):/particles/wave_speed
+            </DataItem>
+          </Attribute>
           <Attribute Name="ID" AttributeType="Scalar" Center="Node">
             <DataItem Dimensions="$(n_particles)" NumberType="Int" Precision="$(int_precision)" Format="HDF">
               $(h5_filename):/particles/id
@@ -416,9 +418,9 @@ $(_xdmf_particle_attributes(h5_filename, particle_fields, n_particles; group="pa
               $(h5_filename):/grid/momentum
             </DataItem>
           </Attribute>
-          <Attribute Name="WaveSpeed" AttributeType="Scalar" Center="Node">
-            <DataItem Dimensions="$(n_nodes)" NumberType="Float" Precision="$(precision)" Format="HDF">
-              $(h5_filename):/grid/wave_speed
+          <Attribute Name="Force" AttributeType="Vector" Center="Node">
+            <DataItem Dimensions="$(n_nodes) 3" NumberType="Float" Precision="$(precision)" Format="HDF">
+              $(h5_filename):/grid/force
             </DataItem>
           </Attribute>
         </Grid>

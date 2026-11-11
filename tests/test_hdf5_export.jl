@@ -31,13 +31,16 @@ function _read_grid_export(path)
             position   = read(g["position"]),
             mass       = read(g["mass"]),
             momentum   = read(g["momentum"]),
-            wave_speed = read(g["wave_speed"]),
+            force      = read(g["force"]),
             origin     = read(g["origin"]),
             dx         = read(g["dx"]),
             attrs      = Dict(k => read(attributes(g)[k]) for k in keys(attributes(g))),
         )
     end
 end
+
+# Dataset names of a group (as a Dict, so `haskey` reads naturally)
+f_keys(path, group) = h5open(f -> Dict(k => true for k in keys(f[group])), path, "r")
 
 # Active part of a sparse state field (columns 1:n_active_read)
 _active(grid, field) = view(field, :, 1:grid.n_active_read)
@@ -74,7 +77,8 @@ _active(grid, field) = view(field, :, 1:grid.n_active_read)
                 @test size(out.position) == (3, M)
                 @test size(out.momentum) == (3, M)
                 @test length(out.mass) == M
-                @test length(out.wave_speed) == M
+                @test size(out.force) == (3, M)
+                @test !haskey(f_keys(path, "grid"), "wave_speed")     # wave speeds are particle data now
 
                 # nodes are unique and group into exactly n_tiles tiles
                 ijk = out.node_index
@@ -101,7 +105,10 @@ _active(grid, field) = view(field, :, 1:grid.n_active_read)
                 # nodal data = active part of the read state
                 @test sum(out.mass)          ≈ sum(_active(g, g.state_read.mass))
                 @test sum(out.momentum[1, :]) ≈ sum(_active(g, g.state_read.momentum.x)) atol = 1e-10
-                @test maximum(out.wave_speed) ≈ maximum(_active(g, g.state_read.wave_speed))
+                @test maximum(abs, out.force) ≈ maximum(maximum(abs, _active(g, f))
+                                                        for f in (g.state_read.force.x,
+                                                                  g.state_read.force.y,
+                                                                  g.state_read.force.z))
 
                 # same totals as the DenseGrid run
                 @test sum(out.mass)           ≈ ref_mass rtol = 1e-12
@@ -157,6 +164,9 @@ _active(grid, field) = view(field, :, 1:grid.n_active_read)
                 @test size(read(f["particles/velocity"])) == (3, n_part)
                 @test size(read(f["particles/F"])) == (9, n_part)
                 @test sum(read(f["particles/mass"])) ≈ m_part
+                ws = read(f["particles/wave_speed"])
+                @test size(ws) == (n_part,)
+                @test maximum(ws) == SmashMPM.max_wavespeed(model)
                 @test read(attributes(f["particles"])["n_particles"]) == n_part
                 @test read(attributes(f)["step"]) == 1
                 # no flat datasets in the file root anymore
@@ -167,6 +177,9 @@ _active(grid, field) = view(field, :, 1:grid.n_active_read)
             @test occursin("$(basename(path)):/particles/position", xmf)
             @test occursin("$(basename(path)):/grid/position", xmf)
             @test occursin("$(basename(path)):/grid/momentum", xmf)
+            @test occursin("$(basename(path)):/grid/force", xmf)
+            @test occursin("$(basename(path)):/particles/wave_speed", xmf)
+            @test !occursin("grid/wave_speed", xmf)
             @test !occursin("3DCoRectMesh", xmf)
 
             # grid only

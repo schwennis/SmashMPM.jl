@@ -21,6 +21,7 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
     F      = Vector{SMatrix{3,3,T,9}}(undef, n)
     C      = Vector{SMatrix{3,3,T,9}}(undef, n)
     mstate = Vector{MS}(undef, n)
+    ws     = Vector{T}(undef, n)
 
     @inbounds for i in eachindex(particle_vector)
         p = particle_vector[i]
@@ -32,6 +33,7 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         F[i]        = p.F
         C[i]        = p.C
         mstate[i]   = p.mat_state
+        ws[i]       = p.wave_speed
     end
 
     # transfer to backend; Manual unwrap to prevent type instabilities
@@ -53,7 +55,8 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         V0  = _to_backend(backend, vol),
         F               = _to_backend(backend, F),
         C               = _to_backend(backend, C),
-        mat_state       = _to_backend(backend, mstate)
+        mat_state       = _to_backend(backend, mstate),
+        wave_speed      = _to_backend(backend, ws)
     ))
 end
 

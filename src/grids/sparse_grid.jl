@@ -90,7 +90,7 @@ function _allocate_tile_pool(backend, ::Type{T}, max_tiles::Int) where {T}
     new_field() = _to_backend(backend, zeros(T, TILE_VOLUME, max_tiles))
     momentum = StructArray{SVector{3, T}}((x=new_field(), y=new_field(), z=new_field()))
     force = StructArray{SVector{3, T}}((x=new_field(), y=new_field(), z=new_field()))
-    return StructArray{GridNode{T}}((mass=new_field(), momentum=momentum, force=force, wave_speed=new_field()))
+    return StructArray{GridNode{T}}((mass=new_field(), momentum=momentum, force=force))
 end
 
 
@@ -304,11 +304,6 @@ count_tiles(positions, dx::T, N::SVector{3, Int}, origin::SVector{3, T}, spline;
 # ---------------------------------------------------------------------------- #
 #                         Grid interface (like DenseGrid)                      #
 # ---------------------------------------------------------------------------- #
-function max_wavespeed(grid::SparseGrid{T}) where {T}
-    grid.n_active_read == 0 && return zero(T)
-    return maximum(view(grid.state_read.wave_speed, :, 1:grid.n_active_read))
-end
-
 """
     grid_reset!(grid::SparseGrid, particle_sets, spline)
 
@@ -339,7 +334,7 @@ function grid_reset!(grid::SparseGrid{T}) where {T}
     # Clear the new write grid. Only the tiles that were in use contain data.
     used  = 1:grid.n_active_write
     state = grid.state_write
-    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
+    for field in (state.mass, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
         fill!(view(field, :, used), zero(T))
     end
     clear!(grid.map_write)
@@ -397,7 +392,7 @@ end
 function _to_dense_state(state, tile_keys, lo::SVector{3, Int}, N::SVector{3, Int})
     T     = eltype(state.mass)
     dense = _allocate_grid_state(CPU(), T, N)
-    mass, wave_speed = Array(state.mass), Array(state.wave_speed)
+    mass       = Array(state.mass)
     px, py, pz = Array(state.momentum.x), Array(state.momentum.y), Array(state.momentum.z)
     fx, fy, fz = Array(state.force.x), Array(state.force.y), Array(state.force.z)
 
@@ -407,7 +402,6 @@ function _to_dense_state(state, tile_keys, lo::SVector{3, Int}, N::SVector{3, In
         ((1 <= a <= N[1]) & (1 <= b <= N[2]) & (1 <= c <= N[3])) || continue   # tile may stick out of the box
 
         dense.mass[a, b, c]       = mass[l, t]
-        dense.wave_speed[a, b, c] = wave_speed[l, t]
         dense.momentum.x[a, b, c] = px[l, t]
         dense.momentum.y[a, b, c] = py[l, t]
         dense.momentum.z[a, b, c] = pz[l, t]

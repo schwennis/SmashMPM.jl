@@ -73,7 +73,7 @@ end
 #                           Allocation Expectations                            #
 # ---------------------------------------------------------------------------- #
 # Benchmarks that must not allocate are marked with a tag on their parent group:
-#   expect_no_allocs!(grp, "max_wavespeed", "grid_reset!")
+#   expect_no_allocs!(grp, "grid_reset!")
 # The tags survive `run`, `save` and `load`, so the result tables can color the
 # allocation column:
 #   green       0 allocations, as required
@@ -107,13 +107,12 @@ expects_no_allocs(grp::BenchmarkGroup, key) = no_alloc_tag(key) in grp.tags
 """
     populate_dense_grid!(grid, backend)
 
-Fill both states of a `DenseGrid` with constant mass, momentum and wave speed.
+Fill both states of a `DenseGrid` with constant mass and momentum.
 """
 function populate_dense_grid!(grid::DenseGrid{T}, backend::Backend) where {T}
     dims = size(grid.state_read.mass)
     for state in (grid.state_read, grid.state_write)
         copyto!(state.mass,       fill(T(2.5),   dims))
-        copyto!(state.wave_speed, fill(T(150.0), dims))
         copyto!(state.momentum.x, fill(T(1.0),   dims))
         copyto!(state.momentum.y, fill(T(-2.0),  dims))
         copyto!(state.momentum.z, fill(T(0.5),   dims))
@@ -130,7 +129,6 @@ function _populate_active_write!(grid::SparseGrid{T}) where {T}
     used  = 1:grid.n_active_write
     state = grid.state_write
     fill!(view(state.mass,       :, used), T(2.5))
-    fill!(view(state.wave_speed, :, used), T(150.0))
     fill!(view(state.momentum.x, :, used), T(1.0))
     fill!(view(state.momentum.y, :, used), T(-2.0))
     fill!(view(state.momentum.z, :, used), T(0.5))
@@ -263,15 +261,16 @@ n_particles(model::MPMModel) = sum(ps -> length(ps.particles.mass), model.partic
 # Solver benchmarks change the particles. They are restored in the `setup` of
 # every sample, so all samples start from the same state.
 
-"""Copy positions, deformation gradients and material states of the first particle set."""
+"""Copy positions, deformation gradients, material states and wave speeds of the first particle set."""
 function capture_particle_backup(model::MPMModel)
     pset = model.particle_sets[1].particles
     return (
-        x         = copy(pset.pos.x),
-        y         = copy(pset.pos.y),
-        z         = copy(pset.pos.z),
-        F         = copy(pset.F),
-        mat_state = copy(pset.mat_state),
+        x          = copy(pset.pos.x),
+        y          = copy(pset.pos.y),
+        z          = copy(pset.pos.z),
+        F          = copy(pset.F),
+        mat_state  = copy(pset.mat_state),
+        wave_speed = copy(pset.wave_speed),     # step! takes its dt from these
     )
 end
 
@@ -289,6 +288,7 @@ function restore_particles!(model::MPMModel, backup)
     copyto!(pset.pos.z, backup.z)
     copyto!(pset.F, backup.F)
     copyto!(pset.mat_state, backup.mat_state)
+    copyto!(pset.wave_speed, backup.wave_speed)
     model.t = zero(model.t)
     clear_write_state!(model.grid)
     KernelAbstractions.synchronize(model.backend)
@@ -298,7 +298,7 @@ end
 """Zero the write state of the grid (for the SparseGrid only the active tiles)."""
 function clear_write_state!(grid::DenseGrid)
     state = grid.state_write
-    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
+    for field in (state.mass, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
         fill!(field, zero(eltype(field)))
     end
     return nothing
@@ -307,7 +307,7 @@ end
 function clear_write_state!(grid::SparseGrid)
     state = grid.state_write
     used  = 1:grid.n_active_write
-    for field in (state.mass, state.wave_speed, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
+    for field in (state.mass, state.momentum.x, state.momentum.y, state.momentum.z, state.force.x, state.force.y, state.force.z)
         fill!(view(field, :, used), zero(eltype(field)))
     end
     return nothing

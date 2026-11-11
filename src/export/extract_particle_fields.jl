@@ -24,7 +24,7 @@
 #   - eos_state/e (Tillotson) is now mat_state/e and exists for every EoS
 #   - strength_state/{s,b} is now elastic_state/{s,bbar_e}
 #
-# (position, velocity, F, affine, mass, volume, id are written by the exporter itself.)
+# (position, velocity, F, affine, mass, volume, wave_speed, id are written by the exporter itself.)
 # 3x3 matrices are stored flat and row-major, like F and affine:
 #   [A11 A12 A13 A21 A22 A23 A31 A32 A33]  -> Julia array (9, N)
 

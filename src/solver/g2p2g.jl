@@ -136,7 +136,8 @@ bc_bounds(::NoSlipBoundary, ::SparseGrid{T, S, M, OpenDomain}) where {T, S, M} =
     particles.mat_state[p_idx] = mat_state_write
     vol_new = det(F_new) * V0
 
-    wavespeed_new = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
+    # wave speed for the CFL condition of the next step, stored per particle (no atomic max)
+    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
 
     affine_p = mass * C_p2g                  # momentum transfer
     affine_f = -(vol_new * σ * Minv)         # stress force, WITHOUT dt
@@ -164,7 +165,6 @@ bc_bounds(::NoSlipBoundary, ::SparseGrid{T, S, M, OpenDomain}) where {T, S, M} =
         @atomic :monotonic state_write.force.x[i, j, k] += f[1]
         @atomic :monotonic state_write.force.y[i, j, k] += f[2]
         @atomic :monotonic state_write.force.z[i, j, k] += f[3]
-        atomic_max!(state_write.wave_speed, i, j, k, wavespeed_new)
     end
 end
 

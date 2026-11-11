@@ -17,7 +17,6 @@ function _allocate_grid_state(backend, ::Type{T}, N::SVector{3,Int}) where {T}
 
     # Fill on CPU
     mass = zeros(T, dims)
-    wave_speed = zeros(T, dims)
     mom_x = zeros(T, dims)
     mom_y = zeros(T, dims)
     mom_z = zeros(T, dims)
@@ -36,8 +35,7 @@ function _allocate_grid_state(backend, ::Type{T}, N::SVector{3,Int}) where {T}
     return StructArray{GridNode{T}}((
         mass=_to_backend(backend, mass), 
         momentum=momentum, 
-        force=force,
-        wave_speed=_to_backend(backend, wave_speed)
+        force=force
     ))
 end
 
@@ -52,18 +50,11 @@ function DenseGrid(dx::T, N::SVector{3,Int}, origin::SVector{3,T}, padding::Int=
 end
 
 
-function max_wavespeed(grid::DenseGrid)
-    return maximum(grid.state_read.wave_speed)
-end
-
-
-
 function grid_reset!(grid::DenseGrid{T, S}) where {T, S}
     grid.state_read, grid.state_write = grid.state_write, grid.state_read
 
     # reset grid_new for the next iteration
     fill!(grid.state_write.mass, zero(T))
-    fill!(grid.state_write.wave_speed, zero(T))
     fill!(grid.state_write.momentum.x, zero(T))
     fill!(grid.state_write.momentum.y, zero(T))
     fill!(grid.state_write.momentum.z, zero(T))
@@ -71,4 +62,3 @@ function grid_reset!(grid::DenseGrid{T, S}) where {T, S}
     fill!(grid.state_write.force.y, zero(T))
     fill!(grid.state_write.force.z, zero(T))
 end
-

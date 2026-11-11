@@ -5,25 +5,16 @@ abstract type AbstractGrid end
     mass::T
     momentum::SVector{3, T}
     force::SVector{3, T}
-    wave_speed::T  # maximum wave speed v_p + c_p around this node (for CFL condition)
 end
 
 function Base.zero(::Type{GridNode{T}}) where {T}
-    return GridNode(mass=zero(T), momentum=zero(SVector{3, T}), force=zero(SVector{3, T}), wave_speed=zero(T))
+    return GridNode(mass=zero(T), momentum=zero(SVector{3, T}), force=zero(SVector{3, T}))
 end
 
 
 # ---------------------------------------------------------------------------- #
 #                         Interface for the grid itself                        #
 # ---------------------------------------------------------------------------- #
-"""
-    max_wavespeed(grid)
-Returns the maximum wave speed in the grid. Used for CFL condition.
-"""
-function max_wavespeed(grid::AbstractGrid)
-    _not_implemented(:max_wavespeed, grid)    
-end
-
 """
     grid_reset!(grid, particle_sets, spline)
 Resets the grid for the next time step, as `grid_reset!(grid)`, and prepares the

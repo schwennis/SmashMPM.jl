@@ -3,8 +3,8 @@
 # ---------------------------------------------------------------------------- #
 # With α = 0 every FLIP term is an exact zero (0 * finite = 0, x + 0 = x), so the
 # runtime FLIP path must give exactly the same numbers as the compile-time APIC
-# path. Compared with `==` after every step: particles (pos, vel, C, F, mat_state),
-# grid read state (mass, momentum, force, wave_speed) and dt.
+# path. Compared with `==` after every step: particles (pos, vel, C, F, mat_state,
+# wave_speed), grid read state (mass, momentum, force) and dt.
 # Cases cover both grids, the boundary condition in the G2P and the force field.
 
 function _aflip_test_bodies()
@@ -24,8 +24,7 @@ end
 
 _aflip_grid_fields(s) = (s.mass,
                          s.momentum.x, s.momentum.y, s.momentum.z,
-                         s.force.x,    s.force.y,    s.force.z,
-                         s.wave_speed)
+                         s.force.x,    s.force.y,    s.force.z)
 
 _aflip_n_active(::DenseGrid)  = 0
 _aflip_n_active(g::SparseGrid) = g.n_active_read
@@ -39,9 +38,10 @@ function _aflip_first_mismatch(a, b)
         P.C         == Q.C         || return "set $n: C"
         P.F         == Q.F         || return "set $n: F"
         P.mat_state == Q.mat_state || return "set $n: mat_state"
+        P.wave_speed == Q.wave_speed || return "set $n: wave_speed"
     end
     _aflip_n_active(a.grid) == _aflip_n_active(b.grid) || return "grid: n_active_read"
-    names = (:mass, :momentum_x, :momentum_y, :momentum_z, :force_x, :force_y, :force_z, :wave_speed)
+    names = (:mass, :momentum_x, :momentum_y, :momentum_z, :force_x, :force_y, :force_z)
     for (name, fa, fb) in zip(names, _aflip_grid_fields(a.grid.state_read),
                                      _aflip_grid_fields(b.grid.state_read))
         fa == fb || return "grid: $name"

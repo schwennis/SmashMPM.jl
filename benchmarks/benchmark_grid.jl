@@ -3,7 +3,8 @@
 """
     add_grid_benchmarks!(suite, backend; T=Float32, n_side=64, n_particles_sparse=25_000)
 
-Register the grid benchmarks (reductions, reset, tile activation) in `suite["grid"]`.
+Register the grid benchmarks (reset, tile activation) in `suite["grid"]`.
+The CFL reduction `max_wavespeed` works on the particles, see benchmark_solver.jl.
 """
 function add_grid_benchmarks!(
     suite::BenchmarkGroup,
@@ -22,14 +23,11 @@ function add_grid_benchmarks!(
     populate_dense_grid!(dense_grid, backend)
 
     dense = grp["DenseGrid_$(n_side)³"] = BenchmarkGroup()
-    dense["max_wavespeed"] = @benchmarkable(
-        sync_run!(SmashMPM.max_wavespeed, $backend, $dense_grid)
-    )
     dense["grid_reset!"] = @benchmarkable(
         sync_run!(grid_reset!, $backend, $dense_grid)
     )
-    # maximum and fill! on plain arrays, no kernel launch on the CPU
-    is_cpu(backend) && expect_no_allocs!(dense, "max_wavespeed", "grid_reset!")
+    # fill! on plain arrays, no kernel launch on the CPU
+    is_cpu(backend) && expect_no_allocs!(dense, "grid_reset!")
 
     # ------------------------------------------------------------------------ #
     #                               Sparse Grid                                #
@@ -39,9 +37,6 @@ function add_grid_benchmarks!(
     )
 
     sparse = grp["SparseGrid_$(n_particles_sparse)p"] = BenchmarkGroup()
-    sparse["max_wavespeed"] = @benchmarkable(
-        sync_run!(SmashMPM.max_wavespeed, $backend, $sparse_grid)
-    )
     # activate_tiles! needs an empty write map before every evaluation (evals = 1)
     sparse["activate_tiles!"] = @benchmarkable(
         sync_run!(activate_tiles!, $backend, $sparse_grid, $p_sets, $spline),
@@ -50,8 +45,8 @@ function add_grid_benchmarks!(
     sparse["grid_reset_and_activate!"] = @benchmarkable(
         sync_run!(grid_reset!, $backend, $sparse_grid, $p_sets, $spline)
     )
-    # Tile activation launches a kernel and reads the tile counter back to the host
-    is_cpu(backend) && expect_no_allocs!(sparse, "max_wavespeed")
+    # Tile activation launches a kernel and reads the tile counter back to the host,
+    # so no benchmark of this group is allocation-free
 
     return grp
 end
