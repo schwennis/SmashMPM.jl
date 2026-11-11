@@ -21,3 +21,5 @@ end
 
 @inline consistent_elastic_state(::HypoElasticity, ::HypoElasticState, s, kin::Kinematics) =
     HypoElasticState(s)
+
+@inline deviatoric_stress_old(::HypoElasticity, st::HypoElasticState, s_new, kin::Kinematics) = st.s

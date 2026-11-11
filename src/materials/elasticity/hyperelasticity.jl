@@ -26,3 +26,11 @@ end
     Ie = tr(st_tr.bbar_e) / 3
     return HyperElasticState(det(kin.F) / el.μ * s + Ie * I)
 end
+
+
+@inline function deviatoric_stress_old(el::HyperElasticity, st::HyperElasticState{T}, s_new,
+                                       kin::Kinematics{T}) where {T}
+    J_old = det(kin.F) / det(one(SMatrix{3,3,T,9}) + kin.dt * kin.C)
+    b     = st.bbar_e
+    return el.μ / J_old * (b - (tr(b) / 3) * I)
+end

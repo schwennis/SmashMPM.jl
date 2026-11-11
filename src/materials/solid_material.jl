@@ -22,7 +22,7 @@
 #   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin, st.c)
 #                           s = degradation(damage, dm) * s
 #   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
-#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D)),  p_n degraded like σ
+#   7. Energy Update        e += dt/ρ * (s_mid : D - ((p_n + p_{n+1})/2 + q) tr(D)), p_{n+1} by fixed point
 #   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)
 #   9. Assembly of σ        σ = s - (p + q) * I
 #
@@ -143,6 +143,12 @@ Returns:
 """
 @inline shear_modulus(el::AbstractElasticity) = _not_implemented(:shear_modulus, el)
 
+
+"""
+    deviatoric_stress_old(el::AbstractElasticity, el_state, s_new, kin) -> s at the start of the step
+(undegraded). Fallback: s_new, i.e. the old explicit rule for the deviatoric work.
+"""
+@inline deviatoric_stress_old(::AbstractElasticity, el_state, s_new, kin::Kinematics) = s_new
 
 
 # Plasticity --------------------------------------------------------------- #
@@ -276,7 +282,7 @@ end
 #   5. Damage               dm = update_damage(damage, damage_state, s, pl_st, th, kin, st.c)
 #                           s = degradation(damage, dm) * s
 #   6. Viscosity            q = viscous_pressure(viscosity, kin, st.c)
-#   7. Energy Update (generic)  e += dt/ρ * (s : D' - (p_n + q) * tr(D)),  p_n degraded like σ
+#   7. Energy Update        e += dt/ρ * (s_mid : D - ((p_n + p_{n+1})/2 + q) tr(D)), p_{n+1} by fixed point
 #   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)
 #   9. Assembly of σ        σ = s - (p + q) * I
 @inline function material_model(mat::SolidMaterial, st::SolidMaterialState, F::SMatrix{3,3,T,9}, C::SMatrix{3,3,T,9}, V0::T, m::T, dt::T, dx::T) where T
@@ -303,12 +309,21 @@ end
     # 6. Viscosity
     q = viscous_pressure(mat.viscosity, kin, st.c)
 
-    # 7. Energy Update (generic)
-    p_n = degrade_pressure(mat.damage, dm_st, T(th.p))
-    e   = st.e + dt / ρ * (dot(s, D) - (p_n + q) * tr(D))
+    # 7. + 8. Energy update (trapezoidal rule) and EoS, implicit in p_{n+1} via fixed point:
+    #   e_{n+1} = e_n + dt/ρ * ( s_mid : D - ((p_n + p_{n+1})/2 + q) tr(D) )
+    s_old = degradation(mat.damage, st.damage_state) *
+            deviatoric_stress_old(mat.elasticity, st.elastic_state, s, kin)
+    w_dev = dot((s_old + s) / 2, D)                                     # deviatoric work density / dt
+    trD   = tr(D)
+    p_old = degrade_pressure(mat.damage, st.damage_state, T(th.p))      # p_n with the damage of step n
 
-    # 8. EoS
+    e = st.e + dt / ρ * (w_dev - (p_old + q) * trD)                     # predictor = old explicit rule
     eos_st, c_b = update_eos(mat.eos, st.eos_state, ρ, e)
+    for _ in 1:2                                                        # corrector iterations
+        p_new = degrade_pressure(mat.damage, dm_st, pressure(eos_st))
+        e     = st.e + dt / ρ * (w_dev - ((p_old + p_new) / 2 + q) * trD)
+        eos_st, c_b = update_eos(mat.eos, st.eos_state, ρ, e)
+    end
     p = degrade_pressure(mat.damage, dm_st, pressure(eos_st))
 
     # Total sound speed

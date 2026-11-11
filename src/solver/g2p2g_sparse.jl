@@ -149,7 +149,7 @@ end
     vol_new = det(F_new) * V0
 
     # wave speed for the CFL condition of the next step, stored per particle (no atomic max)
-    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
+    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star)) + max(norm(C_star), norm(C_p2g)) * (1/inv_dx)
 
     affine_p = mass * C_p2g                  # momentum transfer
     affine_f = -(vol_new * σ * Minv)         # stress force, WITHOUT dt
