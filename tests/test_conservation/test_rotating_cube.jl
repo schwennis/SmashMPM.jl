@@ -20,11 +20,15 @@ _cons_params() = (
     n_steps   = 200,
 )
 
-_cons_snapshot_dir()  = @__DIR__
+# The snapshot is written to a fresh temporary directory on every run. A snapshot
+# kept next to the test file goes stale as soon as Particle or GridNode change
+# (JLD2 then only reconstructs the old types and step! fails).
+const _CONS_SNAPSHOT_DIR = mktempdir()
+_cons_snapshot_dir()  = _CONS_SNAPSHOT_DIR
 _cons_snapshot_path() = joinpath(_cons_snapshot_dir(), "snapshot_000000.jld2")
 
 # ---------------------------------------------------------------------------- #
-#                        Create Snapshot if none exists                        #
+#                   Create Snapshot (JLD2 round trip of the model)             #
 # ---------------------------------------------------------------------------- #
 function _cons_create_snapshot()
     p = _cons_params()
@@ -105,7 +109,7 @@ end
 @testset "Rotating Cube Conservation Test" begin
     p = _cons_params()
 
-    isfile(_cons_snapshot_path()) || _cons_create_snapshot()
+    _cons_create_snapshot()
     @test isfile(_cons_snapshot_path())
 
     model = JLD2.load(_cons_snapshot_path(), "model")

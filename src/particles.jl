@@ -11,12 +11,26 @@ struct Particle{T, MS<:AbstractMaterialState}
     F::SMatrix{3, 3, T, 9}
 
     mat_state::MS
+
+    # c_p + |v_p| of the last G2P2G (or of the initial state); used for the CFL condition.
+    # Stored per particle, so the P2G needs no atomic max on the grid.
+    wave_speed::T = zero(mass)
 end
 
 
-function Particle(id::Int, position::SVector{3, T}, mass::T, V0::T, mat_state::MS) where {T, MS<:AbstractMaterialState}
-    return Particle{T, MS}(UInt32(id), position, mass, V0, one(SMatrix{3, 3, T, 9}), mat_state)
-end
+# ---------------------------------------------------------------------------- #
+#                           Maximum wave speed (CFL)                           #
+# ---------------------------------------------------------------------------- #
+@inline _max_wavespeed(ws::AbstractArray{T}) where {T} = maximum(ws; init=zero(T))
+
+"""
+    max_wavespeed(particle_sets)
+
+Largest particle wave speed c_p + |v_p| of all particle sets (0 if there are no
+particles). Plain reduction over the particle arrays, used for the CFL condition.
+Padding particles of an AoSoA set have wave speed 0 and do not matter.
+"""
+max_wavespeed(particle_sets::Tuple) = maximum(ps -> _max_wavespeed(ps.particles.wave_speed), particle_sets)
 
 
 include("particles/SoA_particles.jl")

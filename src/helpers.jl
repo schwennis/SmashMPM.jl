@@ -11,46 +11,6 @@ _to_backend(::CPU, arr::AbstractArray) = arr    # Do nothing for CPU backend, ju
 
 
 # ---------------------------------------------------------------------------- #
-#                         atomic_max!, backend specific                        #
-# ---------------------------------------------------------------------------- #
-# Default (GPU etc.): native atomic max
-@inline function atomic_max!(A::AbstractArray, i, j, k, val)
-    Atomix.@atomic :monotonic A[i, j, k] max val
-    return nothing
-end
-
-# CPU: UnsafeAtomics has no float `max`, so use a CAS loop
-@inline function atomic_max!(A::Array{T}, i, j, k, val) where {T}
-    v = T(val)
-    old = Atomix.@atomic :monotonic A[i, j, k]
-    while v > old
-        res = Atomix.@atomicreplace :monotonic :monotonic A[i, j, k] old => v
-        res.success && break
-        old = res.old
-    end
-    return nothing
-end
-
-
-# 2D variants for the tile pool of the SparseGrid: A[l, t]
-@inline function atomic_max!(A::AbstractArray, l, t, val)
-    Atomix.@atomic :monotonic A[l, t] max val
-    return nothing
-end
-
-@inline function atomic_max!(A::Array{T}, l, t, val) where {T}
-    v = T(val)
-    old = Atomix.@atomic :monotonic A[l, t]
-    while v > old
-        res = Atomix.@atomicreplace :monotonic :monotonic A[l, t] old => v
-        res.success && break
-        old = res.old
-    end
-    return nothing
-end
-
-
-# ---------------------------------------------------------------------------- #
 #                                Not Implemented                               #
 # ---------------------------------------------------------------------------- #
 # "not implemented" fallback for unimplemented functions

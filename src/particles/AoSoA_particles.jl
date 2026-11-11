@@ -21,6 +21,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
     vol    = Vector{T}(undef, n_padded)
     F      = Vector{SMatrix{3,3,T,9}}(undef, n_padded)
     mstate = Vector{MS}(undef, n_padded)    
+    ws     = zeros(T, n_padded)  # 0 for dummy particles (does not affect max_wavespeed)
 
     
     # ... particle_vector[1:n_original] reinkopieren ...
@@ -32,6 +33,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         vol[i]    = p.V0
         F[i]      = p.F
         mstate[i] = p.mat_state
+        ws[i]     = p.wave_speed
     end
 
     # ... Rest (n_original+1 bis n_padded) mit 0-Masse (Dummy) auffüllen ...
@@ -43,6 +45,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         vol[i]    = zero(T)
         F[i]      = one(SMatrix{3,3,T,9})
         mstate[i] = deepcopy(dummy_mat_state)
+        ws[i]     = zero(T)
     end
 
     # ... Reshape & KernelAbstractions Transfer aufs Backend (wie du es schon hast) ...
@@ -58,7 +61,9 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         mass            = reshape(_to_backend(backend, mass), block_size, max_blocks),
         V0  = reshape(_to_backend(backend, vol), block_size, max_blocks),
         F               = reshape(_to_backend(backend, F), block_size, max_blocks),
-        mat_state       = reshape(_to_backend(backend, mstate), block_size, max_blocks)
+        C               = reshape(_to_backend(backend, C), block_size, max_blocks),
+        mat_state       = reshape(_to_backend(backend, mstate), block_size, max_blocks),
+        wave_speed      = reshape(_to_backend(backend, ws), block_size, max_blocks)
     ))
 
     # Rückgabe des Arrays

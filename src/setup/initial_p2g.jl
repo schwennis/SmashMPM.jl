@@ -1,4 +1,4 @@
-@kernel function initial_p2g_kernel!(grid_state, positions, velocities, affine, masses, soundspeeds, origin, inv_dx, spline)
+@kernel function initial_p2g_kernel!(grid_state, positions, velocities, affine, masses, origin, inv_dx, spline)
     p_idx = @index(Global, Linear)
 
     pos = positions[p_idx]
@@ -28,13 +28,11 @@
         @atomic :monotonic grid_state.momentum.x[i, j, k] += p_update[1]
         @atomic :monotonic grid_state.momentum.y[i, j, k] += p_update[2]
         @atomic :monotonic grid_state.momentum.z[i, j, k] += p_update[3]
-        ws = soundspeeds[p_idx] + norm(vel)
-        atomic_max!(grid_state.wave_speed, i, j, k, ws)
     end
 end
 
-function initial_p2g!(grid, positions, velocities, affines, masses, soundspeeds, spline)
-    grid_old = grid.state_read
+function initial_p2g!(grid, positions, velocities, affines, masses, spline)
+    grid_state = grid.state_write
     origin = grid.origin
     inv_dx = grid.inv_dx
 
@@ -42,7 +40,7 @@ function initial_p2g!(grid, positions, velocities, affines, masses, soundspeeds,
 
     kernel = initial_p2g_kernel!(backend)
 
-    kernel(grid_old, positions, velocities, affines, masses, soundspeeds, origin, inv_dx, spline;
+    kernel(grid_state, positions, velocities, affines, masses, origin, inv_dx, spline;
             ndrange=length(positions))
 
     KernelAbstractions.synchronize(backend)
@@ -54,7 +52,7 @@ end
 # ---------------------------------------------------------------------------- #
 # Scatters into grid.state_write, whose tiles must have been activated before
 # (activate_tiles!). Afterwards, finalize_initial_p2g! swaps write -> read.
-@kernel function initial_p2g_sparse_kernel!(state, map, domain, positions, velocities, affine, masses, soundspeeds,
+@kernel function initial_p2g_sparse_kernel!(state, map, domain, positions, velocities, affine, masses,
                                             origin, inv_dx, spline)
     p_idx = @index(Global, Linear)
 
@@ -67,7 +65,6 @@ end
     if grid_pos_representable(grid_pos)
         base_node = get_support_base(spline, grid_pos)
         iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
-        ws = soundspeeds[p_idx] + norm(vel)
 
         for di in iterator_i, dj in iterator_j, dk in iterator_k
             i = base_node[1] + di
@@ -89,7 +86,6 @@ end
                 @atomic :monotonic state.momentum.x[l, t] += p_update[1]
                 @atomic :monotonic state.momentum.y[l, t] += p_update[2]
                 @atomic :monotonic state.momentum.z[l, t] += p_update[3]
-                atomic_max!(state.wave_speed, l, t, ws)
             end
         end
     else
@@ -97,13 +93,13 @@ end
     end
 end
 
-function initial_p2g!(grid::SparseGrid, positions, velocities, affines, masses, soundspeeds, spline)
+function initial_p2g!(grid::SparseGrid, positions, velocities, affines, masses, spline)
     isempty(positions) && return nothing
     state   = grid.state_write
     backend = KernelAbstractions.get_backend(state.mass)
     kernel  = initial_p2g_sparse_kernel!(backend)
 
-    kernel(state, grid.map_write, grid.domain, positions, velocities, affines, masses, soundspeeds,
+    kernel(state, grid.map_write, grid.domain, positions, velocities, affines, masses,
            grid.origin, grid.inv_dx, spline; ndrange=length(positions))
 
     KernelAbstractions.synchronize(backend)

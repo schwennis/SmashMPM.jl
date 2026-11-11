@@ -118,13 +118,20 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
         
         # Lokale Arrays pro Body auf CPU
         particle_vector = Vector{Particle{T, mat_state_type}}(undef, n_p)
-        soundspeeds_cpu = Vector{T}(undef, n_p)
 
         @inbounds for i in 1:n_p
             state_i = initial_material_state(data.material, rng, n_p, V_body)
-            particle_vector[i] = Particle(particle_counter, data.pos[i], data.mass[i], data.vol[i], state_i)
-            soundspeeds_cpu[i] = soundspeed(data.material, state_i)
-            particle_counter += 1
+            particle_vector[i] = Particle(
+                id=particle_counter, 
+                pos=data.pos[i], 
+                vel=data.vel[i], 
+                mass=data.mass[i], 
+                V0=data.vol[i], 
+                C=data.affine,
+                mat_state=state_i,
+                wave_speed=T(soundspeed(data.material, state_i) + norm(data.vel[i])),  # initial CFL
+            )
+            particle_counter += UInt32(1)
         end
 
         particle_set = setup.particle_set_type(particle_vector, data.material, setup.backend)
@@ -134,7 +141,6 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
             pos    = _to_backend(setup.backend, data.pos),
             vel    = _to_backend(setup.backend, data.vel),
             mass   = _to_backend(setup.backend, data.mass),
-            c      = _to_backend(setup.backend, soundspeeds_cpu),
             affine = data.affine,
         )
     end
@@ -143,7 +149,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     # Initial P2G (SparseGrid: activates its tiles first and swaps them to the read state)
     prepare_initial_p2g!(grid, particle_sets, setup.shapefunction)
     foreach(built) do b
-        initial_p2g!(grid, b.pos, b.vel, b.affine, b.mass, b.c, setup.shapefunction)
+        initial_p2g!(grid, b.pos, b.vel, b.affine, b.mass, setup.shapefunction)
     end
     finalize_initial_p2g!(grid, particle_sets, setup.shapefunction)
     

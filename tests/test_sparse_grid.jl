@@ -224,8 +224,9 @@ end
         @test sum(d.mass)       ≈ sum(ref.mass)       rtol = 1e-12
         @test sum(d.momentum.x) ≈ sum(ref.momentum.x) atol = 1e-10
         @test sum(d.momentum.y) ≈ sum(ref.momentum.y) atol = 1e-10
-        @test maximum(d.wave_speed) ≈ maximum(ref.wave_speed)
-        @test SmashMPM.max_wavespeed(g) ≈ SmashMPM.max_wavespeed(dense_model.grid)
+        # wave speeds live on the particles, initialised independently of the grid type
+        @test SmashMPM.max_wavespeed(model) == SmashMPM.max_wavespeed(dense_model)
+        @test SmashMPM.max_wavespeed(model) > 0
         # box: same nodes as the dense grid
         if g.domain isa BoxDomain
             @test size(d.mass) == size(ref.mass)
@@ -259,14 +260,15 @@ end
         @test close_to(d.momentum.x, r.momentum.x)
         @test close_to(d.momentum.y, r.momentum.y)
         @test close_to(d.momentum.z, r.momentum.z)
-        @test close_to(d.wave_speed, r.wave_speed)
 
         for (ps_d, ps_s) in zip(dense.particle_sets, sparse.particle_sets)
             @test close_to(ps_s.particles.pos.x, ps_d.particles.pos.x)
             @test close_to(ps_s.particles.pos.y, ps_d.particles.pos.y)
             @test close_to(ps_s.particles.pos.z, ps_d.particles.pos.z)
             @test maximum(norm.(ps_s.particles.F .- ps_d.particles.F)) <= 1e-9
+            @test close_to(ps_s.particles.wave_speed, ps_d.particles.wave_speed)
         end
+        @test SmashMPM.max_wavespeed(sparse) ≈ SmashMPM.max_wavespeed(dense) rtol = 1e-9
     end
 
     @testset "5 steps with step! (reset + tile activation)" begin

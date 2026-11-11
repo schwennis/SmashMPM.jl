@@ -56,7 +56,14 @@ function add_solver_benchmarks!(
                 step!($model),
                 setup = (restore_particles!($model, $backup))
             )
-            # Kernel launches allocate on every backend, so allocations are not checked here
+
+            # CFL reduction over the particle wave speeds (read only, no restore needed)
+            case["max_wavespeed"] = @benchmarkable(
+                sync_run!(SmashMPM.max_wavespeed, $backend, $model)
+            )
+            # Kernel launches allocate on every backend, so g2p2g!/step! are not checked.
+            # max_wavespeed is a plain `maximum` on the CPU.
+            is_cpu(backend) && expect_no_allocs!(case, "max_wavespeed")
         end
     end
 
