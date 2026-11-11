@@ -155,16 +155,16 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     finalize_initial_p2g!(grid, particle_sets, setup.shapefunction)
     
     return MPMModel(
-        particle_sets, 
-        grid, 
-        setup.boundary_condition, 
-        setup.external_force, 
-        setup.shapefunction, 
-        setup.transfer_scheme,
-        setup.backend,
-        zero(T), 
-        setup.t_max, 
-        setup.dt_max,
-        setup.cfl_number
+        particle_sets = particle_sets, 
+        grid = grid, 
+        boundary_condition = setup.boundary_condition, 
+        external_force = setup.external_force, 
+        shapefunction = setup.shapefunction, 
+        transfer_scheme = setup.transfer_scheme,
+        backend = setup.backend,
+        t = zero(T), 
+        t_max = setup.t_max, 
+        dt_max = setup.dt_max,
+        cfl_number = setup.cfl_number
     )
 end
