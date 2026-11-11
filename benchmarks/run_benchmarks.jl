@@ -362,7 +362,13 @@ end
 function main(args=ARGS)
     cfg      = parse_cli_args(args)
     backends = detect_backends(; cpu_only=cfg.cpu_only)
-    passed   = true
+    # CUDA may have just been loaded: run everything else in the latest world,
+    # otherwise the CUDA methods (allocate, kernels, ...) are not visible.
+    return Base.invokelatest(_main, cfg, backends)
+end
+
+function _main(cfg, backends)
+    passed = true
 
     if !cfg.speedup_only
         passed &= run_benchmark_suite(cfg, backends)
