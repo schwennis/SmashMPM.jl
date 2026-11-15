@@ -221,9 +221,9 @@ struct NoViscosity <: AbstractArtificialViscosity end
                             AV<:AbstractArtificialViscosity} <: AbstractMaterial
     eos::EoS
     elasticity::EL
-    plasticity::PL
-    damage::DM
-    viscosity::AV
+    plasticity::PL = NullPlasticity()
+    damage::DM = NoDamage()
+    viscosity::AV = NoViscosity()
     ρ::T
 end
 
