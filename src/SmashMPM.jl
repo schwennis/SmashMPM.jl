@@ -26,8 +26,8 @@ export init_state
 export update_eos
 export MurnaghanEOS, MurnaghanState                                 # Murnaghan EOS
 export TillotsonEOS, TillotsonState                                 # Tillotson EOS
-export HypoElasticStrengthModel, HypoElasticStrengthModelState      # Hypoelastic strength model
-export HyperElasticStrengthModel, HyperElasticStrengthModelState    # Hyperelastic strength model
+export HypoElasticity, HypoElasticity     # Hypoelastic strength model
+export HypoElasticState, HyperElasticState    # Hyperelastic strength model
 export BulkViscosity
 export J2Plasticity, J2PlasticityState
 export GradyKippDamage, GradyKippState

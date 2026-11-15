@@ -6,6 +6,7 @@
 #                  box fitted around the bodies (like the DenseGrid)
 #   OpenDomain()   always unbounded (open boundary conditions)
 #   FittedBox()    always a box fitted around the bodies incl. padding + buffer_width
+#                  (+ buffer_width_hi on the upper side, default: same as buffer_width)
 # The DenseGrid ignores this option (it is always a fitted box).
 struct AutoDomain end
 struct FittedBox end
@@ -25,6 +26,7 @@ resolve_domain(::OpenDomain, bc::AbstractBoundaryCondition, N) =
     grid_type::Type{G} = DenseGrid
     padding::Int = 2
     buffer_width::SVector{3, Int} = zero(SVector{3, Int})
+    buffer_width_hi::SVector{3, Int} = buffer_width     # extra nodes on the upper side (default: symmetric)
     domain::DM = AutoDomain()           # only used by the SparseGrid
 
     # Properties
@@ -98,10 +100,11 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     min_corner, max_corner = bounding_box(all_positions)
     grid_length = max_corner - min_corner .+ particle_spacing
 
-    margin = setup.padding .+ setup.buffer_width
-    
-    N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ 2 * margin
-    origin = min_corner .- margin * setup.dx .- T(0.5) * particle_spacing
+    margin_lo = setup.padding .+ setup.buffer_width
+    margin_hi = setup.padding .+ setup.buffer_width_hi
+
+    N = SVector{3, Int}(ceil.(Int, grid_length ./ setup.dx)) .+ margin_lo .+ margin_hi
+    origin = min_corner .- margin_lo * setup.dx .- T(0.5) * particle_spacing
 
     grid = _build_grid(setup.grid_type, setup, N, origin, all_positions)
     
