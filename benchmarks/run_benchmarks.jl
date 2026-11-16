@@ -69,15 +69,17 @@ else into one group per backend (`suite["CPU"]`, `suite["CUDA"]`).
 function build_suite(backends; T::Type{<:AbstractFloat}=Float32, quick::Bool=false)
     suite = BenchmarkGroup()
 
-    # 1. Scalar / register level (backend independent)
-    scalar = suite["scalar"] = BenchmarkGroup()
-    add_material_benchmarks!(scalar, T)
-    add_shapefunction_benchmarks!(scalar, T)
-
-    # 2. Backend specific (CPU and optionally CUDA)
     n_side      = quick ? 32 : 64
     n_sparse    = quick ? 10_000 : 25_000
     solver_cnts = quick ? [10_000] : [10_000, 50_000]
+
+    # 1. Scalar / register level (backend independent, the grid access on the CPU)
+    scalar = suite["scalar"] = BenchmarkGroup()
+    add_material_benchmarks!(scalar, T)
+    add_shapefunction_benchmarks!(scalar, T)
+    add_grid_access_benchmarks!(scalar, T; n_side=n_side, n_particles_sparse=n_sparse)
+
+    # 2. Backend specific (CPU and optionally CUDA)
 
     for (b_name, backend) in backends
         b_grp = suite[b_name] = BenchmarkGroup()

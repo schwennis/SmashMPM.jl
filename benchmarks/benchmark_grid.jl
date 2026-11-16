@@ -50,3 +50,43 @@ function add_grid_benchmarks!(
 
     return grp
 end
+
+
+"""
+    add_grid_access_benchmarks!(suite, T=Float32; n_side=64, n_particles_sparse=25_000)
+
+Register the grid access benchmarks in `suite["grid_access_T"]` (CPU, scalar group):
+one particle's worth of grid lookups as done by the G2P (stencil cache, 27
+`node_slot` calls, mass reads), DenseGrid vs. SparseGrid. Shows the cost of the
+tile lookup and checks that the access layer (src/grids/grid_access.jl) is
+allocation-free. Nanosecond scale, so it lives in the tuned scalar group.
+"""
+function add_grid_access_benchmarks!(
+    suite::BenchmarkGroup,
+    ::Type{T}=Float32;
+    n_side::Int=64,
+    n_particles_sparse::Int=25_000,
+) where {T}
+    grp     = suite["grid_access_$(T)"] = BenchmarkGroup()
+    backend = CPU()
+    spline  = QuadraticSpline()
+
+    # DenseGrid: particle in the middle of the box
+    N          = SVector{3, Int}(n_side, n_side, n_side)
+    dense_grid = populate_dense_grid!(DenseGrid(T(1.0), N, zero(SVector{3, T}), 2, backend), backend)
+    dense_acc  = SmashMPM.read_access(dense_grid)
+    dense_pos  = SVector{3, T}(n_side / 2 + 0.3, n_side / 2 - 0.2, n_side / 2 + 0.1)
+
+    # SparseGrid: at a particle position, so all stencil tiles are active
+    sparse_grid, p_sets, _, _ = make_populated_sparse_grid(n_particles_sparse, backend; T=T, domain_type=:open)
+    sparse_acc = SmashMPM.read_access(sparse_grid)
+    sparse_pos = SmashMPM.grid_position(p_sets[1].particles.pos[1], sparse_grid.inv_dx, sparse_grid.origin)
+    sparse_base = SmashMPM.get_support_base(spline, sparse_pos)
+
+    grp["DenseGrid_stencil_lookup"]  = @benchmarkable stencil_lookup($dense_acc,  $spline, $dense_pos)
+    grp["SparseGrid_stencil_lookup"] = @benchmarkable stencil_lookup($sparse_acc, $spline, $sparse_pos)
+    grp["SparseGrid_stencil_cache"]  = @benchmarkable SmashMPM.stencil_cache($sparse_acc, $spline, $sparse_base)
+    expect_no_allocs!(grp)
+
+    return grp
+end

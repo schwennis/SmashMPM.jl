@@ -10,18 +10,21 @@
 # APIC is AFLIP with α ≡ 0 at compile time: every FLIP branch is removed by
 # `uses_flip(scheme)`.
 #
-# Grid layout (both grids):
+# Grid layout (all grids):
 #   momentum = p^n   pure P2G momentum  Σ N m (v + C r)
 #   force    = f     stress force + external forces, WITHOUT dt
 # The G2P builds v*_i = BC[(p^n_i + dt f_i) / m_i] with the dt of the CURRENT step
 # (clean leapfrog also for a variable dt) and v^n_i = p^n_i / m_i.
 #
-# Both kernels write v_p and C_p for every scheme (export, angular momentum budget).
+# ONE kernel for every grid type. The kernel only talks to the grid through a
+# small "grid access" interface (src/grids/grid_access.jl). Julia compiles the kernel separately
+# for every access type, so the dense / sparse decisions are made at compile
+# time; nothing is dispatched at run time on the device.
+#
+# Replaces the old g2p2g.jl + g2p2g_sparse.jl.
 # ---------------------------------------------------------------------------- #
 
 # --------------------------- shared helpers --------------------------------- #
-# (also used by g2p2g_sparse.jl, which is included after this file)
-
 """Skew matrix S = ½[a]× with axial vector ax(S) = a."""
 @inline half_cross(a::SVector{3, T}) where {T} =
     SMatrix{3, 3, T, 9}(0, a[3] / 2, -a[2] / 2,
@@ -48,46 +51,54 @@ bc_bounds(::NoSlipBoundary, ::SparseGrid{T, S, M, OpenDomain}) where {T, S, M} =
           "or NullBoundaryCondition for open boundaries.")
 
 
-# ------------------------------- kernel ------------------------------------- #
-@kernel function g2p2g_kernel!(
-    state_read, state_write,
-    particles, material, scheme,
+# ---------------------------------------------------------------------------- #
+#                         Device function (one particle)                       #
+# ---------------------------------------------------------------------------- #
+# Early returns are fine here; the kernel below is only a thin wrapper.
+@inline function g2p2g_particle!(
+    p_idx, particles, material, scheme,
+    grid_read, grid_write,
     bc, lo, hi, padding,
-    origin, inv_dx::T, spline,
-    dt::T
-) where T
+    origin, inv_dx::T, spline, dt::T
+) where {T}
     mass_cutoff = sqrt(floatmin(T))  # Threshold to avoid division by zero in G2P
-
-    p_idx = @index(Global, Linear)
 
     # Extract particle properties
     pos_old = particles.pos[p_idx]
     mass    = particles.mass[p_idx]
     V0      = particles.V0[p_idx]
 
+    grid_pos_old = grid_position(pos_old, inv_dx, origin)
+    if !position_ok(grid_read, grid_pos_old)    # SparseGrid: NaN or outside the key range
+        record_miss!(grid_write)
+        return nothing                          # vel, C, wave_speed keep their old values
+    end
+
+    iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
+
     v_star  = zero(SVector{3, T});       v_bar_n = zero(SVector{3, T})
     B_star  = zero(SMatrix{3, 3, T, 9}); B_n     = zero(SMatrix{3, 3, T, 9})
 
-    grid_pos_old  = grid_position(pos_old, inv_dx, origin)
-    base_node_old = get_support_base(spline, grid_pos_old)
-    iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
-
     # ---------------------------------- G2P ---------------------------------- #
+    base_node_old = get_support_base(spline, grid_pos_old)
+    cache_old     = stencil_cache(grid_read, spline, base_node_old)
+
     for di in iterator_i, dj in iterator_j, dk in iterator_k
         i = base_node_old[1] + di
         j = base_node_old[2] + dj
         k = base_node_old[3] + dk
 
-        checkbounds(Bool, state_read.mass, i, j, k) || continue
-        m = state_read.mass[i, j, k]
+        idx, status = node_slot(grid_read, cache_old, i, j, k)
+        status == NODE_OK || continue           # clipped or inactive: no mass there
+        m = node_mass(grid_read, idx)
         m > mass_cutoff || continue
 
         natural_coords = grid_pos_old - SVector(i, j, k)
         r_rel = - natural_coords * (1 / inv_dx)
         N = shapefunction(spline, natural_coords)
 
-        p_i  = state_read.momentum[i, j, k]                                   # p^n_i
-        vi_s = bc_velocity(bc, (p_i + dt * state_read.force[i, j, k]) / m,
+        p_i  = node_momentum(grid_read, idx)                                  # p^n_i
+        vi_s = bc_velocity(bc, (p_i + dt * node_force(grid_read, idx)) / m,
                            i, j, k, lo, hi, padding)                           # v*_i
         v_star = v_star + N * vi_s
         B_star = B_star + B_update(spline, N, r_rel, vi_s)
@@ -137,51 +148,84 @@ bc_bounds(::NoSlipBoundary, ::SparseGrid{T, S, M, OpenDomain}) where {T, S, M} =
     vol_new = det(F_new) * V0
 
     # wave speed for the CFL condition of the next step, stored per particle (no atomic max)
-    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
+
+    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) +
+                                  max(norm(v_new), norm(v_star)) +
+                                  max(norm(C_star), norm(C_p2g)) * (1/inv_dx)
 
     affine_p = mass * C_p2g                  # momentum transfer
     affine_f = -(vol_new * σ * Minv)         # stress force, WITHOUT dt
 
     # ---------------------------------- P2G ---------------------------------- #
-    grid_pos_new  = grid_position(pos_new, inv_dx, origin)
+    grid_pos_new = grid_position(pos_new, inv_dx, origin)
+    if !position_ok(grid_write, grid_pos_new)
+        record_miss!(grid_write)
+        return nothing
+    end
+
     base_node_new = get_support_base(spline, grid_pos_new)
+    cache_new     = stencil_cache(grid_write, spline, base_node_new)
+
     for di in iterator_i, dj in iterator_j, dk in iterator_k
         i = base_node_new[1] + di
         j = base_node_new[2] + dj
         k = base_node_new[3] + dk
 
-        checkbounds(Bool, state_write.mass, i, j, k) || continue
+        idx, status = node_slot(grid_write, cache_new, i, j, k)
+        if status != NODE_OK
+            # tile was not activated: particle moved further than ACTIVATION_MARGIN
+            status == NODE_INACTIVE && record_miss!(grid_write)
+            continue
+        end
 
         natural_coords = grid_pos_new - SVector(i, j, k)
         r_rel = - natural_coords * (1 / inv_dx)
         N = shapefunction(spline, natural_coords)
 
-        @atomic :monotonic state_write.mass[i, j, k] += N * mass
-        p = N * (mass * v_new + affine_p * r_rel)
-        @atomic :monotonic state_write.momentum.x[i, j, k] += p[1]
-        @atomic :monotonic state_write.momentum.y[i, j, k] += p[2]
-        @atomic :monotonic state_write.momentum.z[i, j, k] += p[3]
-        f = N * (affine_f * r_rel)
-        @atomic :monotonic state_write.force.x[i, j, k] += f[1]
-        @atomic :monotonic state_write.force.y[i, j, k] += f[2]
-        @atomic :monotonic state_write.force.z[i, j, k] += f[3]
+        scatter!(grid_write, idx,
+                 N * mass,
+                 N * (mass * v_new + affine_p * r_rel),
+                 N * (affine_f * r_rel))
     end
+
+    return nothing
 end
 
 
-function g2p2g!(model::MPMModel{T, MGT, G}, dt::T) where {T, MGT, G <: DenseGrid}
+# ---------------------------------------------------------------------------- #
+#                                 Kernel + host                                #
+# ---------------------------------------------------------------------------- #
+@kernel function g2p2g_kernel!(
+    particles, material, scheme,
+    grid_read, grid_write,
+    bc, lo, hi, padding,
+    origin, inv_dx::T, spline, dt::T
+) where {T}
+    p_idx = @index(Global, Linear)
+    g2p2g_particle!(p_idx, particles, material, scheme,
+                    grid_read, grid_write,
+                    bc, lo, hi, padding,
+                    origin, inv_dx, spline, dt)
+end
+
+
+function g2p2g!(model::MPMModel{T}, dt::T) where {T}
     grid    = model.grid
     spline  = model.shapefunction
     scheme  = model.transfer_scheme
     bc      = model.boundary_condition
     backend = model.backend
 
-    lo, hi = bc_bounds(bc, grid)
-    kernel = g2p2g_kernel!(backend)
+    check_stencil(grid, spline)
+    lo, hi = bc_bounds(bc, grid)     # errors for NoSlipBoundary on an OpenDomain
+
+    grid_read  = read_access(grid)
+    grid_write = write_access(grid)
+    kernel     = g2p2g_kernel!(backend)
 
     foreach(model.particle_sets) do particle_set
-        kernel(grid.state_read, grid.state_write,
-               particle_set.particles, particle_set.material, scheme,
+        kernel(particle_set.particles, particle_set.material, scheme,
+               grid_read, grid_write,
                bc, lo, hi, grid.padding,
                grid.origin, grid.inv_dx, spline, dt;
                ndrange=length(particle_set.particles))

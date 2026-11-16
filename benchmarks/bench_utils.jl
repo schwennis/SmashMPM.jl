@@ -312,3 +312,67 @@ function clear_write_state!(grid::SparseGrid)
     end
     return nothing
 end
+
+
+# ---------------------------------------------------------------------------- #
+#                         Grid Access / Device Functions                       #
+# ---------------------------------------------------------------------------- #
+# The G2P2G kernel is a thin wrapper around the device function
+# `g2p2g_particle!`, which only talks to the grid through the grid access
+# interface (src/grids/grid_access.jl). Both are plain functions, so on the CPU
+# they can be called directly, without a kernel launch, and checked for
+# allocations. (On the GPU they would index device arrays from the host.)
+
+"""
+    stencil_lookup(access, spline, grid_pos) -> T
+
+Everything the G2P does with the grid for one particle, without the physics:
+stencil cache, 27 node lookups and the mass reads. Returns the summed mass so
+that nothing is optimized away.
+"""
+@inline function stencil_lookup(access, spline, grid_pos::SVector{3, T}) where {T}
+    base   = SmashMPM.get_support_base(spline, grid_pos)
+    cache  = SmashMPM.stencil_cache(access, spline, base)
+    oi, oj, ok = SmashMPM.get_support_offsets(spline)
+    m_sum  = zero(T)
+    for di in oi, dj in oj, dk in ok
+        idx, status = SmashMPM.node_slot(access, cache, base[1] + di, base[2] + dj, base[3] + dk)
+        status == SmashMPM.NODE_OK || continue
+        m_sum += SmashMPM.node_mass(access, idx)
+    end
+    return m_sum
+end
+
+"""
+    g2p2g_serial!(model, dt)
+
+Same work as `g2p2g!`, but the device function runs in a plain serial loop on
+the host instead of in a kernel. CPU only. Must be allocation-free: this is the
+check that the grid access layer (tuples, `idx...`, the access structs) costs nothing.
+"""
+function g2p2g_serial!(model::MPMModel{T}, dt::T) where {T}
+    grid = model.grid
+    SmashMPM.check_stencil(grid, model.shapefunction)
+    lo, hi = SmashMPM.bc_bounds(model.boundary_condition, grid)
+    grid_read, grid_write = SmashMPM.read_access(grid), SmashMPM.write_access(grid)
+    _g2p2g_serial_sets!(model.particle_sets, model.transfer_scheme, grid_read, grid_write,
+                        model.boundary_condition, lo, hi, grid.padding,
+                        grid.origin, grid.inv_dx, model.shapefunction, dt)
+    return nothing
+end
+
+# Recursion over the (heterogeneous) tuple of particle sets keeps every call type-stable
+_g2p2g_serial_sets!(::Tuple{}, args...) = nothing
+@inline function _g2p2g_serial_sets!(sets::Tuple, scheme, grid_read, grid_write,
+                                     bc, lo, hi, padding, origin, inv_dx, spline, dt)
+    p_set = first(sets)
+    particles, material = p_set.particles, p_set.material
+    for p_idx in 1:length(particles)
+        SmashMPM.g2p2g_particle!(p_idx, particles, material, scheme,
+                                 grid_read, grid_write,
+                                 bc, lo, hi, padding,
+                                 origin, inv_dx, spline, dt)
+    end
+    return _g2p2g_serial_sets!(Base.tail(sets), scheme, grid_read, grid_write,
+                               bc, lo, hi, padding, origin, inv_dx, spline, dt)
+end

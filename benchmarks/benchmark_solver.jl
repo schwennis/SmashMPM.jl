@@ -4,7 +4,9 @@
     add_solver_benchmarks!(suite, backend; T=Float32, particle_counts=[10_000, 50_000])
 
 Register the solver benchmarks in `suite["solver"]`: the isolated G2P2G kernel and
-a full time step for every combination of grid type and material.
+a full time step for every combination of grid type and material. All grid types
+run the same kernel (`g2p2g_kernel!`), specialized per grid access type. On the CPU
+the device function is additionally run in a serial loop to check it for allocations.
 """
 function add_solver_benchmarks!(
     suite::BenchmarkGroup,
@@ -64,6 +66,18 @@ function add_solver_benchmarks!(
             # Kernel launches allocate on every backend, so g2p2g!/step! are not checked.
             # max_wavespeed is a plain `maximum` on the CPU.
             is_cpu(backend) && expect_no_allocs!(case, "max_wavespeed")
+
+            # Same work as g2p2g!, but the device function in a serial host loop
+            # (no kernel launch): must be allocation-free, so the unified kernel and
+            # the grid access layer are checked for every grid type and material.
+            # Single-threaded, so compare its time only with itself (baseline), not with g2p2g!.
+            if is_cpu(backend)
+                case["g2p2g_particle! (serial)"] = @benchmarkable(
+                    g2p2g_serial!($model, $dt_tiny),
+                    setup = (restore_particles!($model, $backup))
+                )
+                expect_no_allocs!(case, "g2p2g_particle! (serial)")
+            end
         end
     end
 

@@ -47,3 +47,9 @@ include("grids/dense_grid.jl")
 include("grids/tile_keys.jl")
 include("grids/tile_map.jl")
 include("grids/sparse_grid.jl")
+
+
+# ---------------------------------------------------------------------------- #
+#                                  Grid Access                                 #
+# ---------------------------------------------------------------------------- #
+include("grids/grid_access.jl")
