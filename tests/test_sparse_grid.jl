@@ -169,30 +169,30 @@ end
 
 @testset "External forces on SparseGrid" begin
     T = Float64
-    dt = 0.1
     grid = SparseGrid(1.0, zero(SVector{3, T}))
     pos = StructArray{SVector{3, T}}((x=[-3.2], y=[0.4], z=[7.9]))
     n = activate_tiles!(grid, ((particles=(pos=pos,),),), QuadraticSpline())
     fill!(view(grid.state_write.mass, :, 1:n), 2.0)
 
-    # Constant gravity: Δp = m g dt on every active node
-    apply_external_forces!(ConstantGravity(SVector{3, T}(0.0, -9.81, 0.0)), grid, dt)
-    @test all(view(grid.state_write.momentum.y, :, 1:n) .≈ -1.962)
-    @test all(view(grid.state_write.momentum.x, :, 1:n) .== 0.0)
+    # Constant gravity: Δf = m g on every active node (no dt), momentum untouched
+    apply_external_forces!(ConstantGravity(SVector{3, T}(0.0, -9.81, 0.0)), grid)
+    @test all(view(grid.state_write.force.y, :, 1:n) .≈ -19.62)
+    @test all(view(grid.state_write.force.x, :, 1:n) .== 0.0)
+    @test all(view(grid.state_write.momentum.y, :, 1:n) .== 0.0)
 
     # Radial field: node on the center gets no force, its -x neighbour is pulled to +x
-    fill!(grid.state_write.momentum.x, 0.0)
+    fill!(grid.state_write.force.x, 0.0)
     center_node = (-3, 1, 8)          # global node index, position (-4, 0, 7)
     center = SmashMPM.node_position(grid.origin, grid.inv_dx, center_node...)
-    apply_external_forces!(RadialInvSquareForceField(-10.0, center), grid, dt)
+    apply_external_forces!(RadialInvSquareForceField(-10.0, center), grid)
     l, t = find_node(grid.map_write, grid.domain, center_node...)
-    @test grid.state_write.momentum.x[l, t] ≈ 0.0 atol = 1e-12
+    @test grid.state_write.force.x[l, t] ≈ 0.0 atol = 1e-12
     l, t = find_node(grid.map_write, grid.domain, center_node[1] - 1, center_node[2], center_node[3])
     @test t > 0
-    @test grid.state_write.momentum.x[l, t] > 0.0
+    @test grid.state_write.force.x[l, t] > 0.0
 
-    @test apply_external_forces!(NoExternalForce(), grid, dt) === nothing
-    @test_throws ErrorException apply_external_forces!(VectorFieldForce(zeros(SVector{3, T}, 2, 2, 2)), grid, dt)
+    @test apply_external_forces!(NoExternalForce(), grid) === nothing
+    @test_throws ErrorException apply_external_forces!(VectorFieldForce(zeros(SVector{3, T}, 2, 2, 2)), grid)
 end
 
 @testset "build_mpm_model with SparseGrid" begin

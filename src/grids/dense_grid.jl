@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------- #
 #                                  Dense Grid                                  #
 # ---------------------------------------------------------------------------- #
-mutable struct DenseGrid{T, S <: AbstractArray}<:AbstractGrid
+mutable struct DenseGrid{T, S <: AbstractArray, MM <: AbstractArray}<:AbstractGrid
     state_read::S           # StructArray of GridNodes (from previous time step)
     state_write::S          # StructArray of GridNodes (for current time step)
 
@@ -9,7 +9,15 @@ mutable struct DenseGrid{T, S <: AbstractArray}<:AbstractGrid
 
     origin::SVector{3, T}   # Space Coordinates of the grid origin (1,1,1)
     inv_dx::T               # Inverse of grid spacing dx
+
+    # MUSL mass / momentum of the 2-pass G2P2G (StructArray{MuslNode}), same layout as
+    # the states. Scratch buffer: only valid between pass 1 and pass 2 of one step.
+    musl::MM
 end
+
+"""DenseGrid from given states; allocates the MUSL buffer like the states."""
+DenseGrid(state_read::S, state_write::S, padding::Int, origin::SVector{3, T}, inv_dx::T) where {T, S} =
+    DenseGrid(state_read, state_write, padding, origin, inv_dx, _zero_musl_like(state_write.mass))
 
 
 function _allocate_grid_state(backend, ::Type{T}, N::SVector{3,Int}) where {T}
@@ -46,11 +54,11 @@ function DenseGrid(dx::T, N::SVector{3,Int}, origin::SVector{3,T}, padding::Int=
     state_read = _allocate_grid_state(backend, T, N)
     state_write = _allocate_grid_state(backend, T, N)
 
-    return DenseGrid{T, typeof(state_read)}(state_read, state_write, padding, origin, inv_dx)
+    return DenseGrid(state_read, state_write, padding, origin, inv_dx)
 end
 
 
-function grid_reset!(grid::DenseGrid{T, S}) where {T, S}
+function grid_reset!(grid::DenseGrid{T}) where {T}
     grid.state_read, grid.state_write = grid.state_write, grid.state_read
 
     # reset grid_new for the next iteration
@@ -62,3 +70,7 @@ function grid_reset!(grid::DenseGrid{T, S}) where {T, S}
     fill!(grid.state_write.force.y, zero(T))
     fill!(grid.state_write.force.z, zero(T))
 end
+
+
+"""Clear the MUSL buffer before pass 1 (it always has the shape of the states)."""
+prepare_musl!(grid::DenseGrid) = _clear_musl!(grid.musl)

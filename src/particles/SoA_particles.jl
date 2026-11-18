@@ -16,6 +16,7 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
     ids = Vector{UInt32}(undef, n)
     pos_x = Vector{T}(undef, n); pos_y = Vector{T}(undef, n); pos_z = Vector{T}(undef, n)
     vel_x = Vector{T}(undef, n); vel_y = Vector{T}(undef, n); vel_z = Vector{T}(undef, n)
+    vd_x  = Vector{T}(undef, n); vd_y  = Vector{T}(undef, n); vd_z  = Vector{T}(undef, n)
     mass   = Vector{T}(undef, n)
     vol    = Vector{T}(undef, n)
     F      = Vector{SMatrix{3,3,T,9}}(undef, n)
@@ -28,6 +29,7 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         ids[i] = p.id
         pos_x[i] = p.pos[1]; pos_y[i] = p.pos[2]; pos_z[i] = p.pos[3]
         vel_x[i] = p.vel[1]; vel_y[i] = p.vel[2]; vel_z[i] = p.vel[3]
+        vd_x[i]  = p.v_drift[1]; vd_y[i] = p.v_drift[2]; vd_z[i] = p.v_drift[3]
         mass[i]     = p.mass
         vol[i]      = p.V0
         F[i]        = p.F
@@ -47,10 +49,16 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         y = _to_backend(backend, vel_y),
         z = _to_backend(backend, vel_z)
     ))
+    v_drift = StructArray{SVector{3,T}}((
+        x = _to_backend(backend, vd_x),
+        y = _to_backend(backend, vd_y),
+        z = _to_backend(backend, vd_z)
+    ))
     return StructArray{Particle{T,MS}}((
         id              = _to_backend(backend, ids),
         pos             = pos,
         vel             = vel,
+        v_drift         = v_drift,
         mass            = _to_backend(backend, mass),
         V0  = _to_backend(backend, vol),
         F               = _to_backend(backend, F),

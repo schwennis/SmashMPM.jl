@@ -143,6 +143,35 @@ end
     return nothing
 end
 
+# ---------------------------------------------------------------------------- #
+#                      MUSL buffer (2-pass G2P2G, midpoint)                    #
+# ---------------------------------------------------------------------------- #
+# Pass 1 re-maps mass and momentum of the kicked particles at the midpoints
+# x^{n+1/2}, pass 2 reads them back as the smoothed midpoint velocity field.
+# The buffer has the layout of the WRITE state, so the slot `idx` returned by
+# `node_slot(grid_write, ...)` indexes it directly (dense (i, j, k), sparse (l, t)
+# with t from map_write). No own tile map is needed.
+struct MuslAccess{S}
+    state::S                # StructArray{MuslNode}, layout of state_write
+end
+
+Adapt.@adapt_structure MuslAccess
+
+musl_access(g::AbstractGrid) = MuslAccess(g.musl)
+
+@inline musl_mass(g::MuslAccess, idx)     = g.state.mass[idx...]
+@inline musl_momentum(g::MuslAccess, idx) = g.state.momentum[idx...]
+
+@inline function scatter_musl!(g::MuslAccess, idx, dm, p::SVector{3})
+    s = g.state
+    atomic_add!(s.mass,       idx, dm)
+    atomic_add!(s.momentum.x, idx, p[1])
+    atomic_add!(s.momentum.y, idx, p[2])
+    atomic_add!(s.momentum.z, idx, p[3])
+    return nothing
+end
+
+
 # ---- host-side checks ------------------------------------------------------- #
 check_stencil(::AbstractGrid, spline) = nothing
 function check_stencil(::SparseGrid, spline)

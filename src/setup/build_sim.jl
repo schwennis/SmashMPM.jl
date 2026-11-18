@@ -152,7 +152,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     foreach(built) do b
         initial_p2g!(grid, b.pos, b.vel, b.affine, b.mass, setup.shapefunction)
     end
-    apply_external_forces!(setup.external_force, grid, setup.dt_max)
+    apply_external_forces!(setup.external_force, grid)     # f_I += m_I a, kicked by the first step
     finalize_initial_p2g!(grid, particle_sets, setup.shapefunction)
     
     return MPMModel(

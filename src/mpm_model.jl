@@ -22,6 +22,8 @@
     t_max::T
     dt_max::T = 0.01
     cfl_number::T = 0.4
+
+    dt_prev::T = zero(t_max)    # dt^(n-1)
 end
 
 
@@ -52,7 +54,8 @@ function model_to_cpu(model::MPMModel)
         t = model.t,
         t_max = model.t_max,
         dt_max = model.dt_max,
-        cfl_number = model.cfl_number
+        cfl_number = model.cfl_number,
+        dt_prev = model.dt_prev
     )
     return cpu_model
 end
@@ -67,7 +70,8 @@ function grid_to_cpu(grid::DenseGrid)
         adapt(Array, grid.state_write),
         grid.padding,
         grid.origin,
-        grid.inv_dx
+        grid.inv_dx,
+        adapt(Array, grid.musl)
     )
 end
 
@@ -84,6 +88,7 @@ function grid_to_cpu(grid::SparseGrid)
         grid.domain,
         grid.padding,
         grid.origin,
-        grid.inv_dx
+        grid.inv_dx,
+        adapt(Array, grid.musl)
     )
 end

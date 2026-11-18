@@ -14,6 +14,8 @@ abstract type AbstractParticleSet end
 
     mat_state::MS
 
+    v_drift::SVector{3, T} = vel    # MUSL velocity at last time step v^(n-1/2)
+
     # c_p + |v_p| of the last G2P2G (or of the initial state); used for the CFL condition.
     # Stored per particle, so the P2G needs no atomic max on the grid.
     wave_speed::T = zero(mass)

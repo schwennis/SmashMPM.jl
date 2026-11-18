@@ -51,6 +51,10 @@ using KernelAbstractions
         include("test_aflip.jl")
     end
 
+    @testset "Time Integration Order" begin
+        include("test_time_order.jl")
+    end
+
     @testset "HDF5 Export" begin
         include("test_hdf5_export.jl")
     end

@@ -70,7 +70,7 @@ check_domain(::OpenDomain) = nothing
 # ---------------------------------------------------------------------------- #
 #                                  SparseGrid                                  #
 # ---------------------------------------------------------------------------- #
-mutable struct SparseGrid{T, S<:StructArray, M<:AbstractTileMap, D<:AbstractDomain} <: AbstractGrid
+mutable struct SparseGrid{T, S<:StructArray, M<:AbstractTileMap, D<:AbstractDomain, MM<:StructArray} <: AbstractGrid
     state_read::S               # tile pool, g2p2g reads from here
     state_write::S              # tile pool, g2p2g writes to here
     map_read::M                 # tile key -> tile index for state_read
@@ -83,7 +83,20 @@ mutable struct SparseGrid{T, S<:StructArray, M<:AbstractTileMap, D<:AbstractDoma
 
     origin::SVector{3, T}       # position of node (1, 1, 1), defines the coordinate frame only
     inv_dx::T                   # 1/dx, where dx is the node spacing
+
+    # MUSL mass / momentum of the 2-pass G2P2G (StructArray{MuslNode}), indexed (l, t)
+    # like state_write (tile t of map_write: these tiles were activated around x^n, so
+    # they contain the stencils at the midpoints x^{n+1/2}). Scratch buffer, only valid
+    # between pass 1 and pass 2; resized in prepare_musl! when the write pool has grown.
+    musl::MM
 end
+
+"""SparseGrid from given states/maps; allocates the MUSL buffer like `state_write`."""
+SparseGrid(state_read::S, state_write::S, map_read::M, map_write::M,
+           n_active_read::Int, n_active_write::Int, domain::AbstractDomain, padding::Int,
+           origin::SVector{3, T}, inv_dx::T) where {T, S <: StructArray, M <: AbstractTileMap} =
+    SparseGrid(state_read, state_write, map_read, map_write, n_active_read, n_active_write,
+               domain, padding, origin, inv_dx, _zero_musl_like(state_write.mass))
 
 
 function _allocate_tile_pool(backend, ::Type{T}, max_tiles::Int) where {T}
@@ -339,6 +352,22 @@ function grid_reset!(grid::SparseGrid{T}) where {T}
     end
     clear!(grid.map_write)
     grid.n_active_write = 0
+    return nothing
+end
+
+
+"""
+    prepare_musl!(grid::SparseGrid)
+
+Make the MUSL buffer match the write pool (`activate_tiles!` may have grown it)
+and clear the columns of the active write tiles. Called by `g2p2g!` before pass 1.
+"""
+function prepare_musl!(grid::SparseGrid)
+    if size(grid.musl.mass) != size(grid.state_write.mass)
+        grid.musl = _zero_musl_like(grid.state_write.mass)
+    else
+        _clear_musl!(grid.musl, 1:grid.n_active_write)
+    end
     return nothing
 end
 

@@ -18,6 +18,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
     ids = Vector{UInt32}(undef, n_padded)
     pos_x = Vector{T}(undef, n_padded); pos_y = Vector{T}(undef, n_padded); pos_z = Vector{T}(undef, n_padded)
     vel_x = Vector{T}(undef, n_padded); vel_y = Vector{T}(undef, n_padded); vel_z = Vector{T}(undef, n_padded)
+    vd_x  = Vector{T}(undef, n_padded); vd_y  = Vector{T}(undef, n_padded); vd_z  = Vector{T}(undef, n_padded)
     mass   = zeros(T, n_padded)  # Initialisiere mit 0 für Dummy-Particles
     vol    = Vector{T}(undef, n_padded)
     F      = Vector{SMatrix{3,3,T,9}}(undef, n_padded)
@@ -32,6 +33,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         ids[i] = p.id
         pos_x[i] = p.pos[1]; pos_y[i] = p.pos[2]; pos_z[i] = p.pos[3]
         vel_x[i] = p.vel[1]; vel_y[i] = p.vel[2]; vel_z[i] = p.vel[3]
+        vd_x[i]  = p.v_drift[1]; vd_y[i] = p.v_drift[2]; vd_z[i] = p.v_drift[3]
         mass[i]   = p.mass
         vol[i]    = p.V0
         F[i]      = p.F
@@ -46,6 +48,7 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         ids[i] = UInt32(0)
         pos_x[i] = zero(T); pos_y[i] = zero(T); pos_z[i] = zero(T)
         vel_x[i] = zero(T); vel_y[i] = zero(T); vel_z[i] = zero(T)
+        vd_x[i]  = zero(T); vd_y[i]  = zero(T); vd_z[i]  = zero(T)
         mass[i]   = zero(T)
         vol[i]    = zero(T)
         F[i]      = one(SMatrix{3,3,T,9})
@@ -65,11 +68,17 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         y = reshape(_to_backend(backend, vel_y), block_size, max_blocks),
         z = reshape(_to_backend(backend, vel_z), block_size, max_blocks)
     ))
+    v_drift = StructArray{SVector{3,T}}((
+        x = reshape(_to_backend(backend, vd_x), block_size, max_blocks),
+        y = reshape(_to_backend(backend, vd_y), block_size, max_blocks),
+        z = reshape(_to_backend(backend, vd_z), block_size, max_blocks)
+    ))
 
     SA = StructArray{Particle{T,MS}}((
         id              = reshape(_to_backend(backend, ids), block_size, max_blocks),
         pos             = pos,
         vel             = vel,
+        v_drift         = v_drift,
         mass            = reshape(_to_backend(backend, mass), block_size, max_blocks),
         V0  = reshape(_to_backend(backend, vol), block_size, max_blocks),
         F               = reshape(_to_backend(backend, F), block_size, max_blocks),

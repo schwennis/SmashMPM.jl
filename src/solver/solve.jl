@@ -18,11 +18,14 @@ end
 function step!(model::MPMModel)
     dt = min(courant_timestep(model), model.t_max - model.t)
 
-    # G2P2G step, reads from old grid and writes to new grid
-    g2p2g!(model, dt)
-    
-    # Apply external forces to the grid
-    apply_external_forces!(model.external_force, model.grid, dt)
+    # 2-pass G2P2G (KDK leapfrog): kick with (dt_prev + dt)/2, drift with dt.
+    # Reads from the old grid and writes to the new grid.
+    g2p2g!(model, dt, kick_dt(model.dt_prev, dt))
+    model.dt_prev = dt
+
+    # External forces go into the nodal force f_I (no dt): the next kick
+    # integrates them with its time-centered dt together with the stress force.
+    apply_external_forces!(model.external_force, model.grid)
 
     # Apply boundary conditions to the new grid
     apply_boundary_condition!(model.boundary_condition, model.grid)
