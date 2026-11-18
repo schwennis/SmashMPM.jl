@@ -1,3 +1,5 @@
+using Printf
+
 # ---------------------------------------------------------------------------- #
 #             2nd order in time of the 2-pass KDK / MUSL G2P2G                 #
 # ---------------------------------------------------------------------------- #
@@ -44,6 +46,11 @@ function _order_run(scheme, h, t_end; g = t -> 1.0)
     return (pos = collect(P.pos), F = collect(P.F), model = model)
 end
 
+_fmt(v, f) = join((Printf.format(Printf.Format(f), x) for x in v), "  ")
+_order_report(name, r) = println(rpad(name, 24),
+    "e_x = ", _fmt(r.e_x, "%.2e"), "   order x = ", _fmt(r.p_x, "%.2f"),
+    "   |   order F = ", _fmt(r.p_F, "%.2f"))
+
 _order_err(a, b) = sqrt(sum(norm(x - y)^2 for (x, y) in zip(a, b)) / length(a))
 
 function _order_study(scheme; h = 8e-4, t_end = 0.04, levels = 4, g = t -> 1.0)
@@ -63,7 +70,7 @@ end
 
     @testset "AFLIP(1), constant Δt" begin
         r = _order_study(AFLIP(1.0))
-        @info "AFLIP(1), constant Δt" r.e_x r.p_x r.e_F r.p_F
+        _order_report("AFLIP(1), constant Δt", r)
         @test all(>(1.8), r.p_x)
         @test all(>(1.8), r.p_F)
     end
@@ -71,7 +78,7 @@ end
     @testset "AFLIP(1), variable Δt" begin
         g(t) = 1 + 0.5 * sin(2π * t / 0.04)                     # Δt varies by a factor of 3
         r = _order_study(AFLIP(1.0); g)
-        @info "AFLIP(1), variable Δt" r.e_x r.p_x r.e_F r.p_F
+        _order_report("AFLIP(1), variable Δt", r)
         @test all(>(1.8), r.p_x)
         @test all(>(1.8), r.p_F)
         @test r.runs[end].model.dt_prev > 0
@@ -83,4 +90,19 @@ end
         @test r.model.t ≈ 0.04
         @test all(F -> all(isfinite, F), r.F)
     end
+end
+
+@testset "format_sim_time" begin
+    f = SmashMPM.format_sim_time
+    @test f(0.0)        == "0 s"
+    @test f(1.234567e-9) == "1.235 ns"
+    @test f(12.345678e-6) == "12.35 µs"
+    @test f(999.96e-9)  == "1 µs"            # rounding moves to the next unit
+    @test f(0.0035)     == "3.5 ms"
+    @test f(42.1666)    == "42.17 s"
+    @test f(450.0)      == "7.5 min"
+    @test f(8100.0)     == "2.25 h"
+    @test f(267840.0)   == "3.1 d"
+    @test f(-2.5e-6)    == "-2.5 µs"
+    @test f(8.1234e-5; digits=3) == "81.2 µs"
 end
