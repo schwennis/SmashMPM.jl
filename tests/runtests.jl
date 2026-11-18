@@ -51,6 +51,10 @@ using KernelAbstractions
         include("test_aflip.jl")
     end
 
+    @testset "Heat Bookkeeping" begin
+        include("test_heat.jl")
+    end
+
     @testset "Time Integration Order" begin
         include("test_time_order.jl")
     end

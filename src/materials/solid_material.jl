@@ -269,6 +269,12 @@ end
 
 @inline soundspeed(::SolidMaterial, mat_state::SolidMaterialState) = mat_state.c
 
+# Heat booked by the transfer (transfer schemes with heat = true, see g2p2g.jl)
+@inline add_heat(st::SolidMaterialState, Δe) =
+    SolidMaterialState(c = st.c, e = st.e + oftype(st.e, Δe), eos_state = st.eos_state,
+                       elastic_state = st.elastic_state, plastic_state = st.plastic_state,
+                       damage_state = st.damage_state)
+
 
 
 # ---------------------------------------------------------------------------- #

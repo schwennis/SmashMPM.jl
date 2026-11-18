@@ -13,7 +13,6 @@ function add_external_force_benchmarks!(
     n_particles_sparse::Int=25_000,
 )
     grp = suite["external_forces"] = BenchmarkGroup()
-    dt  = T(1e-4)
 
     no_force = NoExternalForce()
     gravity  = ConstantGravity(SVector{3, T}(0.0, -9.81, 0.0))
@@ -31,16 +30,16 @@ function add_external_force_benchmarks!(
 
     dense = grp["DenseGrid_$(n_side)³"] = BenchmarkGroup()
     dense["NoExternalForce"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $no_force, $dense_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $no_force, $dense_grid)
     )
     dense["ConstantGravity"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $gravity, $dense_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $gravity, $dense_grid)
     )
     dense["RadialInvSquareForceField"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $radial_dense, $dense_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $radial_dense, $dense_grid)
     )
     dense["VectorFieldForce"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $vec_force_dense, $dense_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $vec_force_dense, $dense_grid)
     )
     # ConstantGravity is a fused broadcast, the field forces launch kernels
     is_cpu(backend) && expect_no_allocs!(dense, "NoExternalForce", "ConstantGravity")
@@ -57,16 +56,16 @@ function add_external_force_benchmarks!(
 
     sparse = grp["SparseGrid_$(n_particles_sparse)p"] = BenchmarkGroup()
     sparse["NoExternalForce"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $no_force, $sparse_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $no_force, $sparse_grid)
     )
     sparse["ConstantGravity"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $gravity, $sparse_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $gravity, $sparse_grid)
     )
     sparse["RadialInvSquareForceField"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $radial_sparse, $sparse_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $radial_sparse, $sparse_grid)
     )
     sparse["VectorFieldForce"] = @benchmarkable(
-        sync_run!(apply_external_forces!, $backend, $vec_force_sparse, $sparse_grid, $dt)
+        sync_run!(apply_external_forces!, $backend, $vec_force_sparse, $sparse_grid)
     )
     # Broadcast over views of the active tiles, the views must not escape
     is_cpu(backend) && expect_no_allocs!(sparse, "NoExternalForce", "ConstantGravity")

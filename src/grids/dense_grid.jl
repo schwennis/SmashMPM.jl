@@ -43,7 +43,8 @@ function _allocate_grid_state(backend, ::Type{T}, N::SVector{3,Int}) where {T}
     return StructArray{GridNode{T}}((
         mass=_to_backend(backend, mass), 
         momentum=momentum, 
-        force=force
+        force=force,
+        kin=_to_backend(backend, zeros(T, dims))
     ))
 end
 
@@ -69,6 +70,7 @@ function grid_reset!(grid::DenseGrid{T}) where {T}
     fill!(grid.state_write.force.x, zero(T))
     fill!(grid.state_write.force.y, zero(T))
     fill!(grid.state_write.force.z, zero(T))
+    fill!(grid.state_write.kin, zero(T))
 end
 
 

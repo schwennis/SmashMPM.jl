@@ -126,6 +126,10 @@ end
 @inline node_mass(g, idx)     = g.state.mass[idx...]
 @inline node_momentum(g, idx) = g.state.momentum[idx...]
 @inline node_force(g, idx)    = g.state.force[idx...]
+@inline node_kin(g, idx)      = g.state.kin[idx...]
+
+"""Add the P2G kinetic energy N ½ m |v + C r|² of a particle to a node (heat bookkeeping)."""
+@inline scatter_kin!(g, idx, k) = (atomic_add!(g.state.kin, idx, k); nothing)
 
 # explicit index forms, so the atomic macro never sees a splat
 @inline atomic_add!(a, (i, j, k)::NTuple{3, Int}, v) = (@atomic :monotonic a[i, j, k] += v; nothing)

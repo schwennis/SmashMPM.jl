@@ -317,8 +317,8 @@ end
 # ---------------------------------------------------------------------------- #
 #                         Grid Access / Device Functions                       #
 # ---------------------------------------------------------------------------- #
-# The G2P2G kernel is a thin wrapper around the device function
-# `g2p2g_particle!`, which only talks to the grid through the grid access
+# The two G2P2G kernels are thin wrappers around the device functions
+# `g2p2g_pass1_particle!` / `g2p2g_pass2_particle!`, which only talk to the grid through the grid access
 # interface (src/grids/grid_access.jl). Both are plain functions, so on the CPU
 # they can be called directly, without a kernel launch, and checked for
 # allocations. (On the GPU they would index device arrays from the host.)
@@ -346,33 +346,50 @@ end
 """
     g2p2g_serial!(model, dt)
 
-Same work as `g2p2g!`, but the device function runs in a plain serial loop on
-the host instead of in a kernel. CPU only. Must be allocation-free: this is the
-check that the grid access layer (tuples, `idx...`, the access structs) costs nothing.
+Same work as `g2p2g!` (both passes), but the device functions run in plain serial
+loops on the host instead of in kernels. CPU only. Must be allocation-free: this
+is the check that the grid access layer (tuples, `idx...`, the access structs)
+costs nothing.
 """
 function g2p2g_serial!(model::MPMModel{T}, dt::T) where {T}
     grid = model.grid
     SmashMPM.check_stencil(grid, model.shapefunction)
     lo, hi = SmashMPM.bc_bounds(model.boundary_condition, grid)
+    bar_dt = SmashMPM.kick_dt(model.dt_prev, dt)
+    SmashMPM.prepare_musl!(grid)
     grid_read, grid_write = SmashMPM.read_access(grid), SmashMPM.write_access(grid)
-    _g2p2g_serial_sets!(model.particle_sets, model.transfer_scheme, grid_read, grid_write,
-                        model.boundary_condition, lo, hi, grid.padding,
-                        grid.origin, grid.inv_dx, model.shapefunction, dt)
+    musl = SmashMPM.musl_access(grid)
+    _g2p2g_serial_pass1!(model.particle_sets, model.transfer_scheme, grid_read, grid_write, musl,
+                         model.boundary_condition, lo, hi, grid.padding,
+                         grid.origin, grid.inv_dx, model.shapefunction, bar_dt, dt)
+    _g2p2g_serial_pass2!(model.particle_sets, model.transfer_scheme, grid_read, grid_write, musl,
+                         model.boundary_condition, lo, hi, grid.padding,
+                         grid.origin, grid.inv_dx, model.shapefunction, dt)
     return nothing
 end
 
 # Recursion over the (heterogeneous) tuple of particle sets keeps every call type-stable
-_g2p2g_serial_sets!(::Tuple{}, args...) = nothing
-@inline function _g2p2g_serial_sets!(sets::Tuple, scheme, grid_read, grid_write,
-                                     bc, lo, hi, padding, origin, inv_dx, spline, dt)
+_g2p2g_serial_pass1!(::Tuple{}, args...) = nothing
+@inline function _g2p2g_serial_pass1!(sets::Tuple, scheme, grid_read, grid_write, musl,
+                                      bc, lo, hi, padding, origin, inv_dx, spline, bar_dt, dt)
+    particles = first(sets).particles
+    for p_idx in 1:length(particles)
+        SmashMPM.g2p2g_pass1_particle!(p_idx, particles, scheme, grid_read, grid_write, musl,
+                                       bc, lo, hi, padding, origin, inv_dx, spline, bar_dt, dt)
+    end
+    return _g2p2g_serial_pass1!(Base.tail(sets), scheme, grid_read, grid_write, musl,
+                                bc, lo, hi, padding, origin, inv_dx, spline, bar_dt, dt)
+end
+
+_g2p2g_serial_pass2!(::Tuple{}, args...) = nothing
+@inline function _g2p2g_serial_pass2!(sets::Tuple, scheme, grid_read, grid_write, musl,
+                                      bc, lo, hi, padding, origin, inv_dx, spline, dt)
     p_set = first(sets)
     particles, material = p_set.particles, p_set.material
     for p_idx in 1:length(particles)
-        SmashMPM.g2p2g_particle!(p_idx, particles, material, scheme,
-                                 grid_read, grid_write,
-                                 bc, lo, hi, padding,
-                                 origin, inv_dx, spline, dt)
+        SmashMPM.g2p2g_pass2_particle!(p_idx, particles, material, scheme, grid_read, grid_write, musl,
+                                       bc, lo, hi, padding, origin, inv_dx, spline, dt)
     end
-    return _g2p2g_serial_sets!(Base.tail(sets), scheme, grid_read, grid_write,
-                               bc, lo, hi, padding, origin, inv_dx, spline, dt)
+    return _g2p2g_serial_pass2!(Base.tail(sets), scheme, grid_read, grid_write, musl,
+                                bc, lo, hi, padding, origin, inv_dx, spline, dt)
 end

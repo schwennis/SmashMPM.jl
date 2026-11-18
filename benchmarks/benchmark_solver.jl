@@ -5,7 +5,7 @@
 
 Register the solver benchmarks in `suite["solver"]`: the isolated G2P2G kernel and
 a full time step for every combination of grid type and material. All grid types
-run the same kernel (`g2p2g_kernel!`), specialized per grid access type. On the CPU
+run the same two kernels (`g2p2g_pass1_kernel!`, `g2p2g_pass2_kernel!`), specialized per grid access type. On the CPU
 the device function is additionally run in a serial loop to check it for allocations.
 """
 function add_solver_benchmarks!(
@@ -72,11 +72,11 @@ function add_solver_benchmarks!(
             # the grid access layer are checked for every grid type and material.
             # Single-threaded, so compare its time only with itself (baseline), not with g2p2g!.
             if is_cpu(backend)
-                case["g2p2g_particle! (serial)"] = @benchmarkable(
+                case["g2p2g pass 1+2 (serial)"] = @benchmarkable(
                     g2p2g_serial!($model, $dt_tiny),
                     setup = (restore_particles!($model, $backup))
                 )
-                expect_no_allocs!(case, "g2p2g_particle! (serial)")
+                expect_no_allocs!(case, "g2p2g pass 1+2 (serial)")
             end
         end
     end

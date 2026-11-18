@@ -5,10 +5,13 @@ abstract type AbstractGrid end
     mass::T
     momentum::SVector{3, T}
     force::SVector{3, T}
+    # Σ_p N ½ m |v_p + C_p r|²: kinetic energy the particles brought to the node in the
+    # P2G. Only written by transfer schemes with heat = true (node P2G loss, g2p2g.jl).
+    kin::T
 end
 
 function Base.zero(::Type{GridNode{T}}) where {T}
-    return GridNode(mass=zero(T), momentum=zero(SVector{3, T}), force=zero(SVector{3, T}))
+    return GridNode(mass=zero(T), momentum=zero(SVector{3, T}), force=zero(SVector{3, T}), kin=zero(T))
 end
 
 

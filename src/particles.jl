@@ -14,7 +14,9 @@ abstract type AbstractParticleSet end
 
     mat_state::MS
 
-    v_drift::SVector{3, T} = vel    # MUSL velocity at last time step v^(n-1/2)
+    # Drift velocity ṽ_p^{n-1/2} of the last step (MUSL velocity at the midpoint). Predicts the
+    # midpoint x^{n+1/2} = x^n + Δt/2 ṽ_p^{n-1/2} of the next step (2nd order KDK, see g2p2g.jl).
+    v_drift::SVector{3, T} = vel
 
     # c_p + |v_p| of the last G2P2G (or of the initial state); used for the CFL condition.
     # Stored per particle, so the P2G needs no atomic max on the grid.

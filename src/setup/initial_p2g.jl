@@ -28,6 +28,8 @@
         @atomic :monotonic grid_state.momentum.x[i, j, k] += p_update[1]
         @atomic :monotonic grid_state.momentum.y[i, j, k] += p_update[2]
         @atomic :monotonic grid_state.momentum.z[i, j, k] += p_update[3]
+        v_aff = vel + affine * r_rel
+        @atomic :monotonic grid_state.kin[i, j, k] += N * mass * dot(v_aff, v_aff) / 2
     end
 end
 
@@ -86,6 +88,8 @@ end
                 @atomic :monotonic state.momentum.x[l, t] += p_update[1]
                 @atomic :monotonic state.momentum.y[l, t] += p_update[2]
                 @atomic :monotonic state.momentum.z[l, t] += p_update[3]
+                v_aff = vel + affine * r_rel
+                @atomic :monotonic state.kin[l, t] += N * mass * dot(v_aff, v_aff) / 2
             end
         end
     else

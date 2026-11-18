@@ -23,7 +23,9 @@
     dt_max::T = 0.01
     cfl_number::T = 0.4
 
-    dt_prev::T = zero(t_max)    # dt^(n-1)
+    # Δt of the previous step, for the time-centered kick (Δt_prev + Δt) / 2 of
+    # the staggered leapfrog. 0 = no step done yet (first kick is Δt / 2).
+    dt_prev::T = zero(t_max)
 end
 
 

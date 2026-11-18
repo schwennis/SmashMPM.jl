@@ -315,6 +315,8 @@ function write_output(exporter::HDF5Exporter, model::MPMModel, step::Int, time::
 
         attributes(file)["time"] = Float64(time)
         attributes(file)["step"] = step
+        attributes(file)["dx"]   = Float64(one(T) / cpu_model.grid.inv_dx)                 # e.g. for tools/conservation_check.jl
+        attributes(file)["shapefunction"] = string(nameof(typeof(cpu_model.shapefunction)))
     end
 
     if exporter.write_xdmf

@@ -1,6 +1,14 @@
 # Materials
 abstract type AbstractMaterial end
 abstract type AbstractMaterialState end
+
+"""
+    add_heat(mat_state, Δe) -> mat_state
+
+Add the specific energy Δe (J/kg) booked by the particle-grid transfer to the internal
+energy of the state. States without an internal energy ignore it.
+"""
+@inline add_heat(st::AbstractMaterialState, Δe) = st
 struct NoMaterialState <: AbstractMaterialState end
 
 # ---------------------------------------------------------------------------- #

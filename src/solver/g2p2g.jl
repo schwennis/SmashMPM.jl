@@ -1,6 +1,66 @@
 # ---------------------------------------------------------------------------- #
 #                                     G2P2G                                    #
 # ---------------------------------------------------------------------------- #
+#
+# 2-pass G2P2G: staggered leapfrog (kick-drift-kick, 2nd order in time) with a
+# MUSL double mapping at the midpoint configuration and the AFLIP transfer
+# (Fei et al. 2021) plus two additions that conserve angular momentum exactly:
+#   * C-FLIP:   C'_p = C* + α (C_p - C̄^n)
+#   * Spin-fix: the particle is advected with ṽ_p but carries v_p, which changes
+#               the angular momentum by Δt m ṽ_p × v_p; this is booked into the
+#               skew part of C.
+# APIC is AFLIP with α ≡ 0 at compile time: every FLIP branch is removed by
+# `uses_flip(scheme)`.
+# Schemes with heat = true book the kinetic energy change of the transfer that is
+# not work of the grid forces (and that of the spin-fix) into e (see transfer_schemes.jl).
+#
+# Time levels: v_p, C_p and the drift velocity ṽ_p live on half steps, x_p, F_p,
+# σ_p and the grid on full steps. Δt_n = t^{n+1} - t^n,
+# Δt̄_n = (Δt_{n-1} + Δt_n) / 2 (time-centered kick), Δt̄_0 = Δt_0 / 2.
+#
+#   read grid  (P2G at x^n):  m_I,  p_I = Σ N m (v^{n-1/2} + C r),  f_I(x^n, F^n) (+ m_I a_ext)
+#
+#   Pass 1  G2P at x^n from the read grid, P2G at x^{n+1/2} into the MUSL buffer
+#     kick      v*_I = BC[(p_I + Δt̄_n f_I) / m_I],   v^n_I = p_I / m_I
+#     AFLIP     v_p^{n+1/2} = v̄* + α (v_p^{n-1/2} - v̄^n),   C'_p = C* + α (C_p - C̄^n)
+#     midpoint  x_p^{n+1/2} = x_p^n + Δt_n/2 ṽ_p^{n-1/2}                     (O(Δt²) predictor)
+#     MUSL      m^musl_I, p^musl_I = Σ N(x^{n+1/2}) m (v_p^{n+1/2} + (C'_p + ½δC_p^pred) r)
+#   Pass 2  G2P at x^{n+1/2} from the MUSL buffer, P2G at x^{n+1} into the write grid
+#     ṽ_I = BC[p^musl_I / m^musl_I],   ṽ_p^{n+1/2},  L_p^{n+1/2} = ∇ṽ at x^{n+1/2}
+#     drift     x_p^{n+1} = x_p^n + Δt_n ṽ_p^{n+1/2}                          (midpoint rule)
+#     F         F_p^{n+1} = (I + Δt L + ½(Δt L)²) F_p^n ≈ exp(Δt L^{n+1/2}) F_p^n
+#     material  σ_p^{n+1}, with C_eff = (ΔF - I)/Δt, so that I + Δt C_eff ≡ ΔF
+#     spin-fix  C_p = C'_p + δC_p,   δC_p = ½[-M⁻¹ Δt_n (ṽ_p × v_p)]×
+#     P2G       m, p = Σ N(x^{n+1}) m (v_p + C_p r),  f = -Σ V σ M⁻¹ r N  (WITHOUT Δt)
+#   step!: external forces f_I += m_I a(x_I) (no Δt), walls, swap.
+#
+# Why each piece is needed for the 2nd order (checked in tests/test_time_order.jl):
+#   * The MUSL velocity ṽ = Π_x(v) depends on the particle configuration x it is
+#     mapped at (shape function weights). Evaluated at x^n instead of x^{n+1/2},
+#     the drift has a local O(Δt² ∂Π/∂x) error: 1st order (with a small, O(Δx),
+#     constant). The predictor only has to be O(Δt²) accurate; ṽ^{n-1/2} is.
+#   * With the gradient L at the midpoint configuration, F needs the midpoint
+#     exponential exp(Δt L) (Taylor-2 is enough); I + Δt L alone is 1st order.
+#     (With the gradient at x^n it would be the other way round: I + Δt C̃
+#     already is 2nd order and the ½(Δt C̃)² term makes it 1st order.)
+#   * The spin-fix is an impulse at t^{n+1/2}, between two half-step values of C.
+#     The MUSL map at t^{n+1/2} therefore uses the centered C'_p + ½δC_p, with
+#     δC_p predicted from ṽ^{n-1/2}. The MUSL field only steers the drift; the
+#     full, exact δC_p (with ṽ^{n+1/2}) goes into C_p and the P2G, so the angular
+#     momentum stays exact. Without the centering the spin-fix is 1st order.
+#   * External forces are kicked with Δt̄_n like the stress force (force field).
+# For α < 1 (and APIC), the per-step PIC/APIC projection has no Δt -> 0 limit on a
+# fixed grid, so the order in Δt is only meaningful for α = 1 or for a simultaneous
+# refinement of Δt and Δx.
+#
+# The MUSL buffer has the layout of the write grid: its tiles were activated around
+# x^n, so they contain the stencils at x^{n+1/2} and x^{n+1}.
+#
+# ONE kernel per pass for every grid type. The kernels only talk to the grid
+# through a small "grid access" interface (src/grids/grid_access.jl). Julia
+# compiles them separately for every access type, so the dense / sparse
+# decisions are made at compile time; nothing is dispatched at run time.
+# ---------------------------------------------------------------------------- #
 
 # --------------------------- shared helpers --------------------------------- #
 """Skew matrix S = ½[a]× with axial vector ax(S) = a."""
@@ -76,6 +136,8 @@ The first step (`dt_prev == 0`, particle velocities at t^0) gets the half kick
 
     v_star  = zero(SVector{3, T});       v_bar_n = zero(SVector{3, T})
     B_star  = zero(SMatrix{3, 3, T, 9}); B_n     = zero(SMatrix{3, 3, T, 9})
+    h_node  = zero(T)       # heat: share of the P2G losses of the nodes (specific)
+    S2_star = zero(T)       # heat: Σ N |v*_i|² for the G2P residual
 
     # ------------------------- G2P (kick) at x^n -------------------------- #
     base_node = get_support_base(spline, grid_pos)
@@ -100,7 +162,13 @@ The first step (`dt_prev == 0`, particle velocities at t^0) gets the half kick
                            i, j, k, lo, hi, padding)                             # v*_i
         v_star = v_star + N * vi_s
         B_star = B_star + B_update(spline, N, r_rel, vi_s)
-        if uses_flip(scheme)
+        if books_heat(scheme)
+            # P2G loss of the node (Jensen, ≥ 0), shared by mass: N m_p / m_i of it
+            L_i     = max(node_kin(grid_read, idx) - dot(p_i, p_i) / (2m), zero(T))
+            h_node  = h_node + N * L_i / m
+            S2_star = S2_star + N * dot(vi_s, vi_s)
+        end
+        if needs_bar_n(scheme)
             vi_n    = p_i / m                                                   # v^n_i
             v_bar_n = v_bar_n + N * vi_n
             B_n     = B_n + B_update(spline, N, r_rel, vi_n)
@@ -111,13 +179,34 @@ The first step (`dt_prev == 0`, particle velocities at t^0) gets the half kick
     C_star = B_star * Minv
 
     # ------------------------------ FLIP part ------------------------------- #
+    C_bar_n = B_n * Minv
     if uses_flip(scheme)                              # APIC never reads v_p, C_p
         α     = flip_ratio(scheme, T)
         v_new = v_star + α * (particles.vel[p_idx] - v_bar_n)
-        C_new = C_star + α * (particles.C[p_idx] - B_n * Minv)             # C-FLIP
+        C_new = C_star + α * (particles.C[p_idx] - C_bar_n)                # C-FLIP
     else
         v_new = v_star
         C_new = C_star
+    end
+
+
+    # ---- heat: kinetic energy the transfer dissipates -> e (all terms ≥ 0) -- #
+    # Particle kinetic energy K = ½ m (|v|² + d‖C‖²) = Σ_i N ½ m |v + C r|². Per step
+    #   APIC path:  K_old - (P2G loss of the nodes) + work - (G2P residual of the fit)
+    #   AFLIP:      u_new = (1-α) ū* + α (u + ū* - ū)  (convex combination), so
+    #               K_new = (1-α) K_APIC + α K_FLIP - ½ m α (1-α) ‖ū - u‖²
+    # Booked: (1-α) (node loss share + G2P residual) + ½ α (1-α) ‖ū - u‖²  (specific).
+    # Not booked (sign-indefinite): the energy error of the FLIP path (α term) and the
+    # kinetic energy change of the spin-fix.
+    if books_heat(scheme) && mass > zero(T)
+        d   = one(T) / Minv                                   # D = d I (quadratic: Δx²/4)
+        R   = max((S2_star - dot(v_star, v_star) - d * sum(abs2, C_star)) / 2, zero(T))
+        α_h = flip_ratio(scheme, T)
+        B   = uses_flip(scheme) ?
+              α_h * (one(T) - α_h) / 2 * (sum(abs2, v_bar_n - particles.vel[p_idx]) +
+                                          d * sum(abs2, C_bar_n - particles.C[p_idx])) : zero(T)
+        Δe  = (one(T) - α_h) * (h_node + R) + B
+        particles.mat_state[p_idx] = add_heat(particles.mat_state[p_idx], Δe)
     end
 
     # v_p^{n+1/2}, C'_p (the spin-fix of this step is added in pass 2)
@@ -168,7 +257,7 @@ end
 #     Pass 2: MUSL G2P at x^{n+1/2}, drift, F, material, P2G at x^{n+1}         #
 # ---------------------------------------------------------------------------- #
 @inline function g2p2g_pass2_particle!(
-    p_idx, particles, material,
+    p_idx, particles, material, scheme,
     grid_read, grid_write, musl,
     bc, lo, hi, padding,
     origin, inv_dx::T, spline, dt::T
@@ -233,6 +322,11 @@ end
     F_old     = particles.F[p_idx]
     mat_state = particles.mat_state[p_idx]
 
+    # spin-fix of this drift (applied to C below); its kinetic energy change -> heat
+    v_p = SVector{3, T}(particles.vel.x[p_idx], particles.vel.y[p_idx], particles.vel.z[p_idx])
+    C_o = particles.C[p_idx]
+    δC  = spin_fix(Minv, dt, v_adv, v_p)
+
     ΔF    = exp_taylor2(dt * L)                     # midpoint exponential
     F_new = ΔF * F_old
     particles.F[p_idx] = F_new
@@ -243,8 +337,7 @@ end
 
     # ------------------------------ spin-fix -------------------------------- #
     # Advected with v_adv, carrying v_p: remove Δt m v_adv × v_p from the angular momentum.
-    v_p   = SVector{3, T}(particles.vel.x[p_idx], particles.vel.y[p_idx], particles.vel.z[p_idx])
-    C_p2g = particles.C[p_idx] + spin_fix(Minv, dt, v_adv, v_p)
+    C_p2g = C_o + δC
     particles.C[p_idx] = C_p2g
 
     # wave speed for the CFL condition of the next step, stored per particle (no atomic max)
@@ -285,6 +378,10 @@ end
                  N * mass,
                  N * (mass * v_p + affine_p * r_rel),
                  N * (affine_f * r_rel))
+        if books_heat(scheme)
+            v_aff = v_p + C_p2g * r_rel
+            scatter_kin!(grid_write, idx, N * mass * dot(v_aff, v_aff) / 2)
+        end
     end
 
     return nothing
@@ -308,13 +405,13 @@ end
 end
 
 @kernel function g2p2g_pass2_kernel!(
-    particles, material,
+    particles, material, scheme,
     grid_read, grid_write, musl,
     bc, lo, hi, padding,
     origin, inv_dx::T, spline, dt::T
 ) where {T}
     p_idx = @index(Global, Linear)
-    g2p2g_pass2_particle!(p_idx, particles, material,
+    g2p2g_pass2_particle!(p_idx, particles, material, scheme,
                           grid_read, grid_write, musl,
                           bc, lo, hi, padding,
                           origin, inv_dx, spline, dt)
@@ -358,7 +455,7 @@ function g2p2g!(model::MPMModel{T}, dt::T, bar_dt::T = kick_dt(model.dt_prev, dt
     # Pass 2
     kernel_2 = g2p2g_pass2_kernel!(backend)
     foreach(model.particle_sets) do particle_set
-        kernel_2(particle_set.particles, particle_set.material,
+        kernel_2(particle_set.particles, particle_set.material, scheme,
                  grid_read, grid_write, musl,
                  bc, lo, hi, grid.padding,
                  grid.origin, grid.inv_dx, spline, dt;
