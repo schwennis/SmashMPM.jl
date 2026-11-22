@@ -66,11 +66,10 @@
     vol_new = J * V0
 
 
-    # wave speed for the CFL condition of the next step, stored per particle (no atomic max)
-    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
-
-    affine_p = mass * C_p2g                  # momentum transfer
-    affine_f = -(vol_new * σ * Minv)         # stress force, WITHOUT dt
+    soundspeed_new = soundspeed(material, mat_state_write)
+    particles.wave_speed[p_idx] = soundspeed_new + norm(vel)
+    
+    affine = - dt * vol_new * σ * M_inv(spline, inv_dx) + mass * C
 
     # P2G: Transfer updated particle state to state_write
     grid_pos_new = grid_position(pos_new, inv_dx, origin)
@@ -90,14 +89,10 @@
         N = shapefunction(spline, natural_coords)
 
         @atomic :monotonic state_write.mass[i, j, k] += N * mass
-        p = N * (mass * v_new + affine_p * r_rel)
-        @atomic :monotonic state_write.momentum.x[i, j, k] += p[1]
-        @atomic :monotonic state_write.momentum.y[i, j, k] += p[2]
-        @atomic :monotonic state_write.momentum.z[i, j, k] += p[3]
-        f = N * (affine_f * r_rel)
-        @atomic :monotonic state_write.force.x[i, j, k] += f[1]
-        @atomic :monotonic state_write.force.y[i, j, k] += f[2]
-        @atomic :monotonic state_write.force.z[i, j, k] += f[3]
+        p_update = N * (mass * vel + affine * r_rel)
+        @atomic :monotonic state_write.momentum.x[i, j, k] += p_update[1]
+        @atomic :monotonic state_write.momentum.y[i, j, k] += p_update[2]
+        @atomic :monotonic state_write.momentum.z[i, j, k] += p_update[3]
     end
 
 end

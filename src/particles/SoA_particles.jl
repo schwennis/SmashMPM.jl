@@ -44,7 +44,6 @@ function _allocate_soa(backend, particle_vector::Vector{Particle{T,MS}}) where {
         mass            = _to_backend(backend, mass),
         V0  = _to_backend(backend, vol),
         F               = _to_backend(backend, F),
-        C               = _to_backend(backend, C),
         mat_state       = _to_backend(backend, mstate),
         wave_speed      = _to_backend(backend, ws)
     ))

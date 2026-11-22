@@ -65,7 +65,6 @@ end
     if !grid_pos_representable(grid_pos_old)    # NaN or outside the key range
         record_miss!(map_write)
         return nothing
-        return nothing                          # vel, C, wave_speed keep their old values
     end
 
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
@@ -120,8 +119,9 @@ end
     J = det(F_new)
     vol_new = J * V0
 
-    # wave speed for the CFL condition of the next step, stored per particle (no atomic max)
-    particles.wave_speed[p_idx] = soundspeed(material, mat_state_write) + max(norm(v_new), norm(v_star))
+    soundspeed_new = soundspeed(material, mat_state_write)
+    particles.wave_speed[p_idx] = soundspeed_new + norm(vel)
+
 
     affine = - dt * vol_new * σ * M_inv(spline, inv_dx) + mass * C
 
@@ -153,14 +153,10 @@ end
         N = shapefunction(spline, natural_coords)
 
         @atomic :monotonic state_write.mass[l, t] += N * mass
-        p = N * (mass * v_new + affine_p * r_rel)
-        @atomic :monotonic state_write.momentum.x[l, t] += p[1]
-        @atomic :monotonic state_write.momentum.y[l, t] += p[2]
-        @atomic :monotonic state_write.momentum.z[l, t] += p[3]
-        f = N * (affine_f * r_rel)
-        @atomic :monotonic state_write.force.x[l, t] += f[1]
-        @atomic :monotonic state_write.force.y[l, t] += f[2]
-        @atomic :monotonic state_write.force.z[l, t] += f[3]
+        p_update = N * (mass * vel + affine * r_rel)
+        @atomic :monotonic state_write.momentum.x[l, t] += p_update[1]
+        @atomic :monotonic state_write.momentum.y[l, t] += p_update[2]
+        @atomic :monotonic state_write.momentum.z[l, t] += p_update[3]
     end
 
     return nothing

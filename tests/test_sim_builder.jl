@@ -70,7 +70,7 @@ end
         @test model isa MPMModel
         @test length(model.particle_sets) == 2
         
-        # Prüfe ob das Grid erfolgreich alloziert wurde (Grid Mass > 0 durch initial_p2g!)
+        # Prüfe ob das Grid erfolgreich alloziert wurde (Grid Mass > 0 durch initial_p2g!, jetzt in state_read)
         total_mass = sum(model.grid.state_read.mass)
         @test total_mass > 0.0
     end

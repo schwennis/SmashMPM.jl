@@ -61,7 +61,6 @@ function _allocate_aosoa(backend, particle_vector::Vector{Particle{T,MS}}, block
         mass            = reshape(_to_backend(backend, mass), block_size, max_blocks),
         V0  = reshape(_to_backend(backend, vol), block_size, max_blocks),
         F               = reshape(_to_backend(backend, F), block_size, max_blocks),
-        C               = reshape(_to_backend(backend, C), block_size, max_blocks),
         mat_state       = reshape(_to_backend(backend, mstate), block_size, max_blocks),
         wave_speed      = reshape(_to_backend(backend, ws), block_size, max_blocks)
     ))

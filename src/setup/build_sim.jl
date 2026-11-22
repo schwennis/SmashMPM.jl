@@ -109,7 +109,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     grid = _build_grid(setup.grid_type, setup, N, origin, all_positions)
     
     # Create Particle Sets (+ device copies of the data needed for the initial P2G)
-    particle_counter = 1
+    particle_counter = UInt32(1)
     rng = Random.Xoshiro(setup.seed)
     built = map(bodies_data) do data
         mat_state_type = typeof(initial_material_state(data.material))
@@ -124,10 +124,8 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
             particle_vector[i] = Particle(
                 id=particle_counter, 
                 pos=data.pos[i], 
-                vel=data.vel[i], 
                 mass=data.mass[i], 
                 V0=data.vol[i], 
-                C=data.affine,
                 mat_state=state_i,
                 wave_speed=T(soundspeed(data.material, state_i) + norm(data.vel[i])),  # initial CFL
             )

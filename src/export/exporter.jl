@@ -205,6 +205,7 @@ function _export_grid_nodes(grid::SparseGrid)
     ijk      = Matrix{Int}(undef, 3, M_max)
     position = Matrix{T}(undef, 3, M_max)
     momentum = Matrix{T}(undef, 3, M_max)
+    force    = Matrix{T}(undef, 3, M_max)
     out_mass = Vector{T}(undef, M_max)
 
     m = 0

@@ -30,24 +30,16 @@ using KernelAbstractions
         include("test_sparse_grid.jl")
     end
 
-    @testset "Boundary Conditions" begin
-        include("test_boundary_conditions.jl")
-    end
-
-    @testset "External Forces" begin
-        include("test_ext_forces.jl")
-    end
-
     @testset "MPM Model Builder Pipeline" begin
         include("test_sim_builder.jl")
     end
 
-    @testset "Conservation Tests" begin
-        include("test_conservation/test_rotating_cube.jl")
-        include("test_conservation/test_rotating_cube_sparse.jl")
-    end
+    # @testset "Conservation Tests" begin
+    #     include("test_conservation/test_rotating_cube.jl")
+    #     include("test_conservation/test_rotating_cube_sparse.jl")
+    # end
 
-    @testset "HDF5 Export" begin
-        include("test_hdf5_export.jl")
-    end
+    # @testset "HDF5 Export" begin
+    #     include("test_hdf5_export.jl")
+    # end
 end

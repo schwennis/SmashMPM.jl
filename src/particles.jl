@@ -1,6 +1,6 @@
 abstract type AbstractParticleSet end
 
-struct Particle{T, MS<:AbstractMaterialState}
+@kwdef struct Particle{T, MS<:AbstractMaterialState}
     id::UInt32
 
     pos::SVector{3, T}
@@ -8,12 +8,10 @@ struct Particle{T, MS<:AbstractMaterialState}
     mass::T
     V0::T
 
-    F::SMatrix{3, 3, T, 9}
+    F::SMatrix{3, 3, T, 9} = one(SMatrix{3,3,typeof(mass),9})
 
     mat_state::MS
 
-    # c_p + |v_p| of the last G2P2G (or of the initial state); used for the CFL condition.
-    # Stored per particle, so the P2G needs no atomic max on the grid.
     wave_speed::T = zero(mass)
 end
 

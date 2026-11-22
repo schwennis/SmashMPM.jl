@@ -36,7 +36,7 @@ function initial_p2g!(grid, positions, velocities, affines, masses, spline)
     origin = grid.origin
     inv_dx = grid.inv_dx
 
-    backend = KernelAbstractions.get_backend(grid_old.mass)
+    backend = KernelAbstractions.get_backend(grid_state.mass)
 
     kernel = initial_p2g_kernel!(backend)
 
@@ -110,12 +110,10 @@ end
 # ---------------------------------------------------------------------------- #
 #                       Preparation / finalization per grid                    #
 # ---------------------------------------------------------------------------- #
-# DenseGrid: initial_p2g! writes directly into state_read, nothing to do.
+# DenseGrid: initial_p2g! writes directly into state_read, swapping read and write states is needed
 prepare_initial_p2g!(::DenseGrid, particle_sets, spline)  = nothing
-finalize_initial_p2g!(::DenseGrid, particle_sets, spline) = nothing
+finalize_initial_p2g!(grid::DenseGrid, particle_sets, spline) = grid_reset!(grid)
 
 # SparseGrid: activate the write tiles, scatter into them, then swap them to read
-# (and activate the next write tiles).
 prepare_initial_p2g!(grid::SparseGrid, particle_sets, spline) = (activate_tiles!(grid, particle_sets, spline); nothing)
-# The swap also activates the write tiles for the first g2p2g step.
 finalize_initial_p2g!(grid::SparseGrid, particle_sets, spline) = grid_reset!(grid, particle_sets, spline)

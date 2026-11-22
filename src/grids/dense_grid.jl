@@ -20,12 +20,21 @@ function _allocate_grid_state(backend, ::Type{T}, N::SVector{3,Int}) where {T}
     mom_x = zeros(T, dims)
     mom_y = zeros(T, dims)
     mom_z = zeros(T, dims)
+    force_x = zeros(T, dims)
+    force_y = zeros(T, dims)
+    force_z = zeros(T, dims)
+
 
     # Named tuple to make single momentum components available via grid.state_write.momentum.x, .y, .z
     momentum = StructArray{SVector{3,T}}((
         x=_to_backend(backend, mom_x), 
         y=_to_backend(backend, mom_y), 
         z=_to_backend(backend, mom_z)
+    ))
+    force = StructArray{SVector{3,T}}((
+        x=_to_backend(backend, force_x),
+        y=_to_backend(backend, force_y),
+        z=_to_backend(backend, force_z),
     ))
     return StructArray{GridNode{T}}((
         mass=_to_backend(backend, mass), 
