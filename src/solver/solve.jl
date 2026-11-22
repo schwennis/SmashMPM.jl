@@ -15,6 +15,33 @@ function format_eta(seconds::Real)
 end
 
 
+# (unit, seconds per unit, upper limit in this unit before switching to the next one)
+const _SIM_TIME_UNITS = (("ps", 1e-12, 1000.0), ("ns", 1e-9, 1000.0), ("µs", 1e-6, 1000.0),
+                         ("ms", 1e-3, 1000.0), ("s", 1.0, 60.0), ("min", 60.0, 60.0),
+                         ("h", 3600.0, 24.0), ("d", 86400.0, Inf))
+
+"""
+    format_sim_time(t; digits=4) -> String
+
+Simulation time in seconds as a readable string with an adaptive unit and `digits`
+significant digits, e.g. `"12.35 µs"`, `"3.5 ms"`, `"42.17 s"`, `"7.5 min"`, `"2.25 h"`, `"3.1 d"`.
+"""
+function format_sim_time(t::Real; digits::Int=4)
+    isfinite(t) || return string(t)
+    iszero(t) && return "0 s"
+    a = abs(float(t))
+    for (i, (unit, scale, limit)) in enumerate(_SIM_TIME_UNITS)
+        v = round(a / scale; sigdigits=digits)
+        # first unit in which the (rounded) value stays below its limit; tiny values stay in ps
+        if v < limit || i == length(_SIM_TIME_UNITS)
+            num = v >= 10.0^digits ? @sprintf("%.0f", v) : string(Float64(v))
+            num = endswith(num, ".0") ? num[1:end-2] : num
+            return (t < 0 ? "-" : "") * num * " " * unit
+        end
+    end
+end
+
+
 function step!(model::MPMModel)
     dt = min(courant_timestep(model), model.t_max - model.t)
 
@@ -63,7 +90,7 @@ function solve!(model::MPMModel, setup::SimulationSetup)
 
             time_since_last_export = T(0.0)
             write_output(setup.exporter, model, step, model.t)
-            println("Exported output at time $(round(model.t, digits=4)) (step $step, current dt: $(@sprintf("%.2e", dt))). eta: $(format_eta(eta_seconds))")
+            println("Exported output at time $(format_sim_time(model.t)) (step $step, current dt: $(format_sim_time(dt))). eta: $(format_eta(eta_seconds))")
             flush(stdout)
         end
     end
