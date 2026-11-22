@@ -43,11 +43,14 @@ end
 
 
 function step!(model::MPMModel)
+    dt_kick = typeof(model.t)(0.5) * (dt + model.dt_previous)
+    grid_kick!(model.grid, dt)
+
     dt = min(courant_timestep(model), model.t_max - model.t)
 
-    # G2P2G step, reads from old grid and writes to new grid
+    # G2P2G step, reads from state read and writes to state_write
     g2p2g!(model, dt)
-    
+
     # Apply external forces to the grid
     apply_external_forces!(model.external_force, model.grid, dt)
 

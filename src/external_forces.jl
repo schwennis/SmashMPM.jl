@@ -12,9 +12,6 @@ abstract type AbstractExternalForce end
                          origin[3] + dx * (k - 1))
 end
 
-"""Columns of the sparse tile pool that currently hold write data."""
-@inline active_write(grid::SparseGrid, field) = view(field, :, 1:grid.n_active_write)
-
 
 # ---------------------------------------------------------------------------- #
 #                               No External Force                              #
@@ -44,13 +41,13 @@ end
 function apply_external_forces!(force::ConstantGravity, grid::SparseGrid{T}, dt::Real) where {T}
     grid.n_active_write == 0 && return nothing
     state = grid.state_write
-    mass  = active_write(grid, state.mass)
+    mass  = active_view(grid, state.mass)
 
     force_mass = mass .* force.g
 
-    active_write(grid, state.force.x) .+= mass .* force_mass[1]
-    active_write(grid, state.force.y) .+= mass .* force_mass[2]
-    active_write(grid, state.force.z) .+= mass .* force_mass[3]
+    active_view(grid, state.force.x) .+= mass .* force_mass[1]
+    active_view(grid, state.force.y) .+= mass .* force_mass[2]
+    active_view(grid, state.force.z) .+= mass .* force_mass[3]
     return nothing
 end
 

@@ -63,3 +63,12 @@ function grid_reset!(grid::DenseGrid{T, S}) where {T, S}
     fill!(grid.state_write.momentum.y, zero(T))
     fill!(grid.state_write.momentum.z, zero(T))
 end
+
+
+function grid_kick!(grid::SparseGrid, dt_kick)
+    state = grid.state_write
+
+    state.momentum[1] .+= dt_kick * state.force[1]
+    state.momentum[2] .+= dt_kick * state.force[2]
+    state.momentum[3] .+= dt_kick * state.force[3]
+end

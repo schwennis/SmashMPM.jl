@@ -342,6 +342,33 @@ function grid_reset!(grid::SparseGrid{T}) where {T}
     return nothing
 end
 
+"""Columns of the sparse tile pool that currently hold write data."""
+@inline active_view(grid::SparseGrid, field) = view(field, :, 1:grid.n_active_write)
+
+function grid_kick!(grid::SparseGrid, dt_kick)
+    state = grid.state_write
+    n_active = grid.n_active_write
+    n == 0 && return nothing
+    
+    backend = KernelAbstractions.get_backend(state.mass)
+    kernel = sparse_grid_kick_kernel!(backend)
+
+    kernel(
+        state.momentum.x, state.momentum.y, state.momentum.z,
+        state.force.x, state.force.y, state.force.z, dt_kick;
+        ndrange=(TILE_VOLUME, n)
+    )
+    KernelAbstractions.synchronize(backend)
+    return nothing
+end
+
+@kernel function sparse_grid_kick_kernel!(p_x, p_y, p_z, f_x, f_y, f_z, dt_kick)
+    l, t = @index(Global, NTuple)
+
+    p_x[l, t] += f_x[l, t] * dt_kick
+    p_y[l, t] += f_y[l, t] * dt_kick
+    p_z[l, t] += f_z[l, t] * dt_kick
+end
 
 # ---------------------------------------------------------------------------- #
 #                      Conversion to DenseGrid (export, tests)                 #
