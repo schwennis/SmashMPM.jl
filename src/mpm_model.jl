@@ -18,7 +18,8 @@
 
     t::T = 0.0
     t_max::T
-    dt_max::T = 0.01
+    dt_max::T = 0.001
+    dt_previous::T = 0.0
     cfl_number::T = 0.4
 end
 

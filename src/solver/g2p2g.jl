@@ -89,10 +89,14 @@
         N = shapefunction(spline, natural_coords)
 
         @atomic :monotonic state_write.mass[i, j, k] += N * mass
-        p_update = N * (mass * vel + affine * r_rel)
+        p_update = N * mass * (vel + C * r_rel)
         @atomic :monotonic state_write.momentum.x[i, j, k] += p_update[1]
         @atomic :monotonic state_write.momentum.y[i, j, k] += p_update[2]
         @atomic :monotonic state_write.momentum.z[i, j, k] += p_update[3]
+        f_update = - vol_new * σ * M_inv(spline, inv_dx)
+        @atomic :monotonic state_write.force.x[i, j, k] += f_update[1]
+        @atomic :monotonic state_write.force.y[i, j, k] += f_update[2]
+        @atomic :monotonic state_write.force.z[i, j, k] += f_update[3]
     end
 
 end

@@ -1,21 +1,6 @@
 # ============================================================================ #
 #                               EXTERNAL FORCES                                #
 # ============================================================================ #
-# External forces act on the write state of the grid after G2P2G:
-#   p_I += m_I * f(x_I) * dt
-#
-# Every force is implemented for DenseGrid and SparseGrid:
-#   - DenseGrid:  nodal arrays of size (Nx, Ny, Nz), node (i, j, k)
-#   - SparseGrid: tile pool of size (TILE_VOLUME, max_tiles), only the
-#                 columns 1:n_active_write are in use. The global node index
-#                 of entry (l, t) is node_index(map_write.tile_keys[t], l).
-#
-# Node positions are always x_I = origin + dx * ((i, j, k) .- 1), for the
-# sparse grid with possibly negative global indices (open domains).
-#
-# Note: VectorFieldForce is only defined for a SparseGrid with a BoxDomain 
-# since an unbounded domain cannot be saved as an array.
-# ============================================================================ #
 
 abstract type AbstractExternalForce end
 
@@ -51,14 +36,9 @@ end
 function apply_external_forces!(force::ConstantGravity, grid::DenseGrid{T, S}, dt::Real) where {T, S}
     state = grid.state_write
 
-    # Skalare vorab berechnen, um Multiplikationen im GPU-Loop zu sparen
-    gx_dt = T(force.g[1] * dt)
-    gy_dt = T(force.g[2] * dt)
-    gz_dt = T(force.g[3] * dt)
-
-    state.momentum.x .+= state.mass .* gx_dt
-    state.momentum.y .+= state.mass .* gy_dt
-    state.momentum.z .+= state.mass .* gz_dt
+    state.force.x .+= state.mass .* force.g[1]
+    state.force.y .+= state.mass .* force.g[2]
+    state.force.z .+= state.mass .* force.g[3]
 end
 
 function apply_external_forces!(force::ConstantGravity, grid::SparseGrid{T}, dt::Real) where {T}
@@ -66,13 +46,11 @@ function apply_external_forces!(force::ConstantGravity, grid::SparseGrid{T}, dt:
     state = grid.state_write
     mass  = active_write(grid, state.mass)
 
-    gx_dt = T(force.g[1] * dt)
-    gy_dt = T(force.g[2] * dt)
-    gz_dt = T(force.g[3] * dt)
+    force_mass = mass .* force.g
 
-    active_write(grid, state.momentum.x) .+= mass .* gx_dt
-    active_write(grid, state.momentum.y) .+= mass .* gy_dt
-    active_write(grid, state.momentum.z) .+= mass .* gz_dt
+    active_write(grid, state.force.x) .+= mass .* force_mass[1]
+    active_write(grid, state.force.y) .+= mass .* force_mass[2]
+    active_write(grid, state.force.z) .+= mass .* force_mass[3]
     return nothing
 end
 
@@ -93,7 +71,7 @@ end
 end
 
 # --- DenseGrid ---------------------------------------------------------------- #
-@kernel function radial_inv_square_force_kernel!(momentum_x, momentum_y, momentum_z, mass, origin, inv_dx, center, F_0, dt)
+@kernel function radial_inv_square_force_kernel!(force_x, force_y, force_z, mass, origin, inv_dx, center, F_0)
     # Direkte 3D-Indexierung über GPU-Register (vermeidet div/mod)
     i, j, k = @index(Global, NTuple)
 
@@ -105,9 +83,9 @@ end
         pos = node_position(origin, inv_dx, i, j, k)
         force_vec = radial_inv_square_force(pos, center, F_0)
 
-        momentum_x[i, j, k] += m * force_vec[1] * dt
-        momentum_y[i, j, k] += m * force_vec[2] * dt
-        momentum_z[i, j, k] += m * force_vec[3] * dt
+        force_x[i, j, k] += m * force_vec[1]
+        force_y[i, j, k] += m * force_vec[2]
+        force_z[i, j, k] += m * force_vec[3]
     end
 end
 
@@ -118,15 +96,14 @@ function apply_external_forces!(force::RadialInvSquareForceField, grid::DenseGri
     kernel = radial_inv_square_force_kernel!(backend)
 
     kernel(
-        state.momentum.x,
-        state.momentum.y,
-        state.momentum.z,
+        state.force.x,
+        state.force.y,
+        state.force.z,
         state.mass,
         grid.origin,
         grid.inv_dx,
         force.center,
         force.F_0,
-        T(dt);
         ndrange=size(state.mass) # 3D-Range
     )
 
@@ -134,8 +111,8 @@ function apply_external_forces!(force::RadialInvSquareForceField, grid::DenseGri
 end
 
 # --- SparseGrid --------------------------------------------------------------- #
-@kernel function sparse_radial_inv_square_force_kernel!(momentum_x, momentum_y, momentum_z, mass, tile_keys,
-                                                        origin, inv_dx, center, F_0, dt)
+@kernel function sparse_radial_inv_square_force_kernel!(force_x, force_y, force_z, mass, tile_keys,
+                                                        origin, inv_dx, center, F_0)
     l, t = @index(Global, NTuple)
 
     m = mass[l, t]
@@ -146,9 +123,9 @@ end
         pos = node_position(origin, inv_dx, i, j, k)
         force_vec = radial_inv_square_force(pos, center, F_0)
 
-        momentum_x[l, t] += m * force_vec[1] * dt
-        momentum_y[l, t] += m * force_vec[2] * dt
-        momentum_z[l, t] += m * force_vec[3] * dt
+        force_x[l, t] += m * force_vec[1]
+        force_y[l, t] += m * force_vec[2]
+        force_z[l, t] += m * force_vec[3]
     end
 end
 
@@ -161,9 +138,9 @@ function apply_external_forces!(force::RadialInvSquareForceField, grid::SparseGr
     kernel = sparse_radial_inv_square_force_kernel!(backend)
 
     kernel(
-        state.momentum.x, state.momentum.y, state.momentum.z,
+        state.force.x, state.force.y, state.force.z,
         state.mass, grid.map_write.tile_keys,
-        grid.origin, grid.inv_dx, force.center, force.F_0, T(dt);
+        grid.origin, grid.inv_dx, force.center, force.F_0;
         ndrange=(TILE_VOLUME, n)
     )
 
@@ -183,15 +160,15 @@ end
 end
 
 # --- DenseGrid ---------------------------------------------------------------- #
-@kernel function vector_field_force_kernel!(momentum_x, momentum_y, momentum_z, mass, force_field, dt)
+@kernel function vector_field_force_kernel!(force_x, force_y, force_z, mass, force_field)
     i, j, k = @index(Global, NTuple)
 
     m = mass[i, j, k]
     if m > eps(eltype(mass))
         f_vec = force_field[i, j, k]
-        momentum_x[i, j, k] += m * f_vec[1] * dt
-        momentum_y[i, j, k] += m * f_vec[2] * dt
-        momentum_z[i, j, k] += m * f_vec[3] * dt
+        force_x[i, j, k] += m * f_vec[1]
+        force_y[i, j, k] += m * f_vec[2]
+        force_z[i, j, k] += m * f_vec[3]
     end
 end
 
@@ -213,7 +190,6 @@ function apply_external_forces!(force::VectorFieldForce, grid::DenseGrid{T, S}, 
         state.momentum.z,
         state.mass,
         dev_force_field,
-        T(dt);
         ndrange=size(state.mass)
     )
 
@@ -221,8 +197,8 @@ function apply_external_forces!(force::VectorFieldForce, grid::DenseGrid{T, S}, 
 end
 
 # --- SparseGrid --------------------------------------------------------------- #
-@kernel function sparse_vector_field_force_kernel!(momentum_x, momentum_y, momentum_z, mass, tile_keys,
-                                                   force_field, lo, dt)
+@kernel function sparse_vector_field_force_kernel!(force_x, force_y, force_z, mass, tile_keys,
+                                                   force_field, lo)
     l, t = @index(Global, NTuple)
 
     m = mass[l, t]
@@ -231,9 +207,9 @@ end
         a, b, c = i - lo[1] + 1, j - lo[2] + 1, k - lo[3] + 1
         if checkbounds(Bool, force_field, a, b, c)      # boundary tiles may stick out of the box
             f_vec = force_field[a, b, c]
-            momentum_x[l, t] += m * f_vec[1] * dt
-            momentum_y[l, t] += m * f_vec[2] * dt
-            momentum_z[l, t] += m * f_vec[3] * dt
+            force_x[l, t] += m * f_vec[1]
+            force_y[l, t] += m * f_vec[2]
+            force_z[l, t] += m * f_vec[3]
         end
     end
 end
@@ -254,7 +230,7 @@ function apply_external_forces!(force::VectorFieldForce, grid::SparseGrid{T, S, 
     kernel(
         state.momentum.x, state.momentum.y, state.momentum.z,
         state.mass, grid.map_write.tile_keys,
-        dev_force_field, domain.lo, T(dt);
+        dev_force_field, domain.lo;
         ndrange=(TILE_VOLUME, n)
     )
 

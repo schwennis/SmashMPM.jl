@@ -123,8 +123,6 @@ end
     particles.wave_speed[p_idx] = soundspeed_new + norm(vel)
 
 
-    affine = - dt * vol_new * σ * M_inv(spline, inv_dx) + mass * C
-
     # ---------------------------------- P2G ---------------------------------- #
     grid_pos_new = grid_position(pos_new, inv_dx, origin)
     if !grid_pos_representable(grid_pos_new)
@@ -153,10 +151,14 @@ end
         N = shapefunction(spline, natural_coords)
 
         @atomic :monotonic state_write.mass[l, t] += N * mass
-        p_update = N * (mass * vel + affine * r_rel)
+        p_update = N * mass * (vel + C * r_rel)
         @atomic :monotonic state_write.momentum.x[l, t] += p_update[1]
         @atomic :monotonic state_write.momentum.y[l, t] += p_update[2]
         @atomic :monotonic state_write.momentum.z[l, t] += p_update[3]
+        f_update = - vol_new * σ * M_inv(spline, inv_dx)
+        @atomic :monotonic state_write.force.x[l, t] += f_update[1]
+        @atomic :monotonic state_write.force.y[l, t] += f_update[2]
+        @atomic :monotonic state_write.force.z[l, t] += f_update[3]
     end
 
     return nothing
