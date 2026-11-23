@@ -95,3 +95,59 @@ end
         @test model.particle_sets[2].material isa typeof(mat2)
     end
 end
+
+
+# ------------------------------------------------------------------------ #
+# 4. Initial half kick (KDK start)
+# ------------------------------------------------------------------------ #
+# build_mpm_model kicks the initial grid momentum by dt0/2 with the initial
+# forces, so state_read holds m * v^{1/2}, and stores dt0 in dt_previous.
+@testset "build_mpm_model: initial half kick" begin
+    T   = Float64
+    g   = SVector{3, T}(0.0, -9.81, 0.0)
+    v0  = SVector{3, T}(1.0, 0.0, 0.0)
+    mat = NeoHookean(ρ=1000.0, E=1e6, ν=0.3)
+    body = Body(Sphere(0.3, SVector(0.0, 0.0, 0.0)), v0, zero(SVector{3, T}), mat)
+
+    read_state(grid::DenseGrid)  = grid.state_read
+    read_state(grid::SparseGrid) = to_dense(grid).state_read
+
+    for grid_type in (DenseGrid, SparseGrid)
+        @testset "$grid_type" begin
+            setup = SimulationSetup(dx=0.1, t_max=1.0, grid_type=grid_type,
+                                    external_force=ConstantGravity(g))
+            model = build_mpm_model((body,), setup)
+
+            @test model isa MPMModel
+            @test model.t == 0.0
+            @test model.cfl_number == setup.cfl_number      # keyword constructor, no field shift
+
+            # dt_previous is the FULL first time step (not dt0/2)
+            dt0 = model.dt_previous
+            @test dt0 > 0
+            @test dt0 ≈ SmashMPM.courant_timestep(model)    # wave speeds unchanged since build
+
+            st = read_state(model.grid)
+            M  = sum(st.mass)
+            P  = SVector(sum(st.momentum.x), sum(st.momentum.y), sum(st.momentum.z))
+
+            # P = M v0 + dt0/2 * M g  (internal forces are zero in the unstressed initial state)
+            @test P[1] ≈ M * v0[1]               rtol = 1e-10
+            @test P[2] ≈ M * g[2] * dt0 / 2      rtol = 1e-10
+            @test abs(P[3]) < 1e-10 * M * norm(v0)
+
+            # the force of the initial state is kept in the read state (f = m g)
+            @test sum(st.force.y) ≈ M * g[2]     rtol = 1e-10
+        end
+    end
+
+    # without external forces the initial momentum is not changed by the kick
+    model = build_mpm_model((body,), SimulationSetup(dx=0.1, t_max=1.0))
+    st = model.grid.state_read
+    @test sum(st.momentum.y) ≈ 0.0 atol = 1e-12
+    @test sum(st.momentum.x) ≈ sum(st.mass) * v0[1] rtol = 1e-10
+
+    # t_max shorter than the CFL step: the first step is clipped to t_max
+    model = build_mpm_model((body,), SimulationSetup(dx=0.1, t_max=1e-6))
+    @test model.dt_previous ≈ 1e-6
+end

@@ -42,6 +42,24 @@ end
     @test grid.state_write.force.x[1,1,1] == 0.0
 end
 
+@testset "Grid Kick (DenseGrid)" begin
+    grid = DenseGrid(dx, N, origin, padding, KernelAbstractions.CPU())
+    st = grid.state_write
+    fill!(st.momentum, SVector{3, T}(1.0, -1.0, 0.5))
+    fill!(st.force,    SVector{3, T}(2.0, 4.0, -6.0))
+
+    # p += dt_kick * f on every node, force itself is not changed
+    SmashMPM.grid_kick!(grid, 0.25)
+    @test all(st.momentum .≈ Ref(SVector{3, T}(1.5, 0.0, -1.0)))
+    @test all(st.force .== Ref(SVector{3, T}(2.0, 4.0, -6.0)))
+
+    # the read state is not touched
+    @test all(grid.state_read.momentum .== Ref(zero(SVector{3, T})))
+
+    @test_call SmashMPM.grid_kick!(grid, 0.25)
+    @test_opt SmashMPM.grid_kick!(grid, 0.25)
+end
+
 @testset "Reductions & Grid Performance (JET)" begin
     grid = DenseGrid(dx, N, origin, padding, KernelAbstractions.CPU())
 

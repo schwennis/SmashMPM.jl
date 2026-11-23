@@ -182,6 +182,11 @@ function _export_grid_nodes(grid::DenseGrid)
     momentum[2, :] .= vec(Array(state.momentum.y))
     momentum[3, :] .= vec(Array(state.momentum.z))
 
+    force = Matrix{T}(undef, 3, M)
+    force[1, :] .= vec(Array(state.force.x))
+    force[2, :] .= vec(Array(state.force.y))
+    force[3, :] .= vec(Array(state.force.z))
+
     return (; node_index = ijk, position,
               mass       = vec(Array(state.mass)),
               momentum,
@@ -200,6 +205,9 @@ function _export_grid_nodes(grid::SparseGrid)
     px         = Array(view(state.momentum.x, :, 1:n))
     py         = Array(view(state.momentum.y, :, 1:n))
     pz         = Array(view(state.momentum.z, :, 1:n))
+    fx         = Array(view(state.force.x,    :, 1:n))
+    fy         = Array(view(state.force.y,    :, 1:n))
+    fz         = Array(view(state.force.z,    :, 1:n))
 
     M_max    = TILE_VOLUME * n
     ijk      = Matrix{Int}(undef, 3, M_max)
@@ -219,7 +227,7 @@ function _export_grid_nodes(grid::SparseGrid)
         position[1, m], position[2, m], position[3, m] = x[1], x[2], x[3]
 
         out_mass[m] = mass[l, t]
-        force[1, m], force[2, m], force[3, m] = Array(state.force.x)[l, t], Array(state.force.y)[l, t], Array(state.force.z)[l, t]
+        force[1, m], force[2, m], force[3, m] = fx[l, t], fy[l, t], fz[l, t]
         momentum[1, m], momentum[2, m], momentum[3, m] = px[l, t], py[l, t], pz[l, t]
     end
 

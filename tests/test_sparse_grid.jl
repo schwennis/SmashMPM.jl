@@ -175,24 +175,57 @@ end
     n = activate_tiles!(grid, ((particles=(pos=pos,),),), QuadraticSpline())
     fill!(view(grid.state_write.mass, :, 1:n), 2.0)
 
-    # Constant gravity: Δp = m g dt on every active node
+    # Constant gravity: f = m g on every active node (no dt, momentum untouched)
     apply_external_forces!(ConstantGravity(SVector{3, T}(0.0, -9.81, 0.0)), grid, dt)
-    @test all(view(grid.state_write.momentum.y, :, 1:n) .≈ -1.962)
-    @test all(view(grid.state_write.momentum.x, :, 1:n) .== 0.0)
+    @test all(view(grid.state_write.force.y, :, 1:n) .≈ -19.62)
+    @test all(view(grid.state_write.force.x, :, 1:n) .== 0.0)
+    @test all(view(grid.state_write.force.z, :, 1:n) .== 0.0)
+    @test all(view(grid.state_write.momentum.y, :, 1:n) .== 0.0)
 
     # Radial field: node on the center gets no force, its -x neighbour is pulled to +x
-    fill!(grid.state_write.momentum.x, 0.0)
+    fill!(grid.state_write.force.x, 0.0)
     center_node = (-3, 1, 8)          # global node index, position (-4, 0, 7)
     center = SmashMPM.node_position(grid.origin, grid.inv_dx, center_node...)
     apply_external_forces!(RadialInvSquareForceField(-10.0, center), grid, dt)
     l, t = find_node(grid.map_write, grid.domain, center_node...)
-    @test grid.state_write.momentum.x[l, t] ≈ 0.0 atol = 1e-12
+    @test grid.state_write.force.x[l, t] ≈ 0.0 atol = 1e-12
     l, t = find_node(grid.map_write, grid.domain, center_node[1] - 1, center_node[2], center_node[3])
     @test t > 0
-    @test grid.state_write.momentum.x[l, t] > 0.0
+    @test grid.state_write.force.x[l, t] > 0.0
+    @test all(view(grid.state_write.momentum.x, :, 1:n) .== 0.0)
 
     @test apply_external_forces!(NoExternalForce(), grid, dt) === nothing
     @test_throws ErrorException apply_external_forces!(VectorFieldForce(zeros(SVector{3, T}, 2, 2, 2)), grid, dt)
+end
+
+@testset "grid_kick! on SparseGrid" begin
+    T = Float64
+    grid = SparseGrid(1.0, zero(SVector{3, T}))
+
+    # no active tiles: nothing to do
+    @test grid.n_active_write == 0
+    @test SmashMPM.grid_kick!(grid, 0.1) === nothing
+
+    pos = StructArray{SVector{3, T}}((x=[0.3], y=[0.4], z=[0.5]))
+    n = activate_tiles!(grid, ((particles=(pos=pos,),),), QuadraticSpline())
+    st = grid.state_write
+    for (p, f, v_p, v_f) in ((st.momentum.x, st.force.x, 1.0, 2.0),
+                             (st.momentum.y, st.force.y, -1.0, 4.0),
+                             (st.momentum.z, st.force.z, 0.5, -6.0))
+        fill!(view(p, :, 1:n), v_p)
+        fill!(view(f, :, 1:n), v_f)
+    end
+
+    SmashMPM.grid_kick!(grid, 0.25)       # p += dt_kick * f, force itself is not changed
+    @test all(view(st.momentum.x, :, 1:n) .≈ 1.5)
+    @test all(view(st.momentum.y, :, 1:n) .≈ 0.0)
+    @test all(view(st.momentum.z, :, 1:n) .≈ -1.0)
+    @test all(view(st.force.y, :, 1:n) .== 4.0)
+
+    # inactive columns of the tile pool are not touched
+    if size(st.mass, 2) > n
+        @test all(view(st.momentum.x, :, n+1:size(st.mass, 2)) .== 0.0)
+    end
 end
 
 @testset "build_mpm_model with SparseGrid" begin
@@ -213,8 +246,13 @@ end
     @test_throws ErrorException build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid,
                                                 domain=OpenDomain(), boundary_condition=NoSlipBoundary()))
 
-    ref = dense_model.grid.state_read
-    for model in (open_model, box_model)
+    # The initial half kick is followed by the boundary condition, so the box model
+    # (NoSlipBoundary zeroes the padding nodes) is compared with a dense model with the same BC.
+    dense_box_model = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0,
+                                                              boundary_condition=NoSlipBoundary()))
+
+    for (model, ref_model) in ((open_model, dense_model), (box_model, dense_box_model))
+        ref = ref_model.grid.state_read
         g = model.grid
         @test g.n_active_read > 0
         @test g.n_active_write > 0          # tiles for the first g2p2g are already active
@@ -225,7 +263,7 @@ end
         @test sum(d.momentum.x) ≈ sum(ref.momentum.x) atol = 1e-10
         @test sum(d.momentum.y) ≈ sum(ref.momentum.y) atol = 1e-10
         # wave speeds live on the particles, initialised independently of the grid type
-        @test SmashMPM.max_wavespeed(model) == SmashMPM.max_wavespeed(dense_model)
+        @test SmashMPM.max_wavespeed(model) == SmashMPM.max_wavespeed(ref_model)
         @test SmashMPM.max_wavespeed(model) > 0
         # box: same nodes as the dense grid
         if g.domain isa BoxDomain
@@ -260,6 +298,9 @@ end
         @test close_to(d.momentum.x, r.momentum.x)
         @test close_to(d.momentum.y, r.momentum.y)
         @test close_to(d.momentum.z, r.momentum.z)
+        @test close_to(d.force.x, r.force.x)
+        @test close_to(d.force.y, r.force.y)
+        @test close_to(d.force.z, r.force.z)
 
         for (ps_d, ps_s) in zip(dense.particle_sets, sparse.particle_sets)
             @test close_to(ps_s.particles.pos.x, ps_d.particles.pos.x)

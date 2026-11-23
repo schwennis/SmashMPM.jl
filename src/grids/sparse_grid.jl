@@ -348,7 +348,7 @@ end
 function grid_kick!(grid::SparseGrid, dt_kick)
     state = grid.state_write
     n_active = grid.n_active_write
-    n == 0 && return nothing
+    n_active == 0 && return nothing
     
     backend = KernelAbstractions.get_backend(state.mass)
     kernel = sparse_grid_kick_kernel!(backend)
@@ -421,7 +421,7 @@ function _to_dense_state(state, tile_keys, lo::SVector{3, Int}, N::SVector{3, In
     dense = _allocate_grid_state(CPU(), T, N)
     mass       = Array(state.mass)
     px, py, pz = Array(state.momentum.x), Array(state.momentum.y), Array(state.momentum.z)
-
+    fx, fy, fz = Array(state.force.x), Array(state.force.y), Array(state.force.z)
     for t in eachindex(tile_keys), l in 1:TILE_VOLUME
         i, j, k = node_index(tile_keys[t], l)
         a, b, c = i - lo[1] + 1, j - lo[2] + 1, k - lo[3] + 1      # dense indices
@@ -431,6 +431,9 @@ function _to_dense_state(state, tile_keys, lo::SVector{3, Int}, N::SVector{3, In
         dense.momentum.x[a, b, c] = px[l, t]
         dense.momentum.y[a, b, c] = py[l, t]
         dense.momentum.z[a, b, c] = pz[l, t]
+        dense.force.x[a, b, c] = fx[l, t]
+        dense.force.y[a, b, c] = fy[l, t]
+        dense.force.z[a, b, c] = fz[l, t]
     end
     return dense
 end

@@ -71,7 +71,9 @@ end
 function grid_kick!(grid::DenseGrid, dt_kick)
     state = grid.state_write
 
-    state.momentum.x .+= dt_kick * state.force[1]
-    state.momentum.y .+= dt_kick * state.force[2]
-    state.momentum.z .+= dt_kick * state.force[3]
+    state.momentum.x .+= dt_kick * state.force.x
+    state.momentum.y .+= dt_kick * state.force.y
+    state.momentum.z .+= dt_kick * state.force.z
+
+    return nothing
 end

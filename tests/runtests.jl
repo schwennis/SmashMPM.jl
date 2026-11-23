@@ -26,12 +26,24 @@ using KernelAbstractions
         include("test_grid.jl")
     end
 
+    @testset "External Forces" begin
+        include("test_ext_forces.jl")
+    end
+
+    @testset "Boundary Conditions" begin
+        include("test_boundary_conditions.jl")
+    end
+
     @testset "Sparse Grid" begin
         include("test_sparse_grid.jl")
     end
 
     @testset "MPM Model Builder Pipeline" begin
         include("test_sim_builder.jl")
+    end
+
+    @testset "Time Integration (KDK)" begin
+        include("test_time_integration.jl")
     end
 
     @testset "Conservation Tests" begin

@@ -170,4 +170,6 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     apply_boundary_condition!(model.boundary_condition, model.grid)
     grid_reset!(model.grid, model.particle_sets, model.shapefunction)
     model.dt_previous = initial_dt
+
+    return model
 end
