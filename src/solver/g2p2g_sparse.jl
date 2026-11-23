@@ -155,7 +155,7 @@ end
         @atomic :monotonic state_write.momentum.x[l, t] += p_update[1]
         @atomic :monotonic state_write.momentum.y[l, t] += p_update[2]
         @atomic :monotonic state_write.momentum.z[l, t] += p_update[3]
-        f_update = - vol_new * σ * M_inv(spline, inv_dx)
+        f_update = -N * vol_new * M_inv(spline, inv_dx) * (σ * r_rel)
         @atomic :monotonic state_write.force.x[l, t] += f_update[1]
         @atomic :monotonic state_write.force.y[l, t] += f_update[2]
         @atomic :monotonic state_write.force.z[l, t] += f_update[3]

@@ -356,7 +356,7 @@ function grid_kick!(grid::SparseGrid, dt_kick)
     kernel(
         state.momentum.x, state.momentum.y, state.momentum.z,
         state.force.x, state.force.y, state.force.z, dt_kick;
-        ndrange=(TILE_VOLUME, n)
+        ndrange=(TILE_VOLUME, n_active)
     )
     KernelAbstractions.synchronize(backend)
     return nothing

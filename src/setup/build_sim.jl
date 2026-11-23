@@ -149,18 +149,25 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
     foreach(built) do b
         initial_p2g!(grid, b.pos, b.vel, b.affine, b.mass, setup.shapefunction)
     end
-    finalize_initial_p2g!(grid, particle_sets, setup.shapefunction)
+    apply_external_forces!(setup.external_force, grid, zero(T))
     
-    return MPMModel(
-        particle_sets, 
-        grid, 
-        setup.boundary_condition, 
-        setup.external_force, 
-        setup.shapefunction, 
-        setup.backend,
-        zero(T), 
-        setup.t_max, 
-        setup.dt_max,
-        setup.cfl_number
+    model =  MPMModel(
+        particle_sets = particle_sets, 
+        grid = grid, 
+        boundary_condition = setup.boundary_condition, 
+        external_force = setup.external_force, 
+        shapefunction = setup.shapefunction, 
+        backend = setup.backend,
+        t = zero(T), 
+        t_max = setup.t_max, 
+        dt_max =setup.dt_max,
+        cfl_number = setup.cfl_number
     )
+
+    # -- initial dt/2 kick --
+    initial_dt = min(courant_timestep(model), model.t_max)
+    grid_kick!(model.grid, T(0.5) * initial_dt) # half time step
+    apply_boundary_condition!(model.boundary_condition, model.grid)
+    grid_reset!(model.grid, model.particle_sets, model.shapefunction)
+    model.dt_previous = initial_dt
 end

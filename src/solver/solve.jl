@@ -43,26 +43,29 @@ end
 
 
 function step!(model::MPMModel)
-    dt_kick = typeof(model.t)(0.5) * (dt + model.dt_previous)
-    grid_kick!(model.grid, dt)
+    T = typeof(model.t)
 
-    dt = min(courant_timestep(model), model.t_max - model.t)
+    dt = model.dt_previous
 
     # G2P2G step, reads from state read and writes to state_write
     g2p2g!(model, dt)
 
     # Apply external forces to the grid
     apply_external_forces!(model.external_force, model.grid, dt)
+    # Update simulation time
+    model.t += dt 
+
+    dt_new = min(courant_timestep(model), model.t_max - model.t)
+
+    grid_kick!(model.grid, T(0.5)*(dt + dt_new))
 
     # Apply boundary conditions to the new grid
     apply_boundary_condition!(model.boundary_condition, model.grid)
     
-    # Reset grid for next step, swaps old <-> new
-    # (for SparseGrid: also activates the tiles for the next g2p2g from the new particle positions)
+    # Reset grid for next step, swaps read <-> write and rebuilds tile maps
     grid_reset!(model.grid, model.particle_sets, model.shapefunction)
 
-    # Update simulation time
-    model.t += dt
+    model.dt_previous = dt_new
 
     return dt
 end

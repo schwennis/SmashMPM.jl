@@ -43,11 +43,10 @@ function apply_external_forces!(force::ConstantGravity, grid::SparseGrid{T}, dt:
     state = grid.state_write
     mass  = active_view(grid, state.mass)
 
-    force_mass = mass .* force.g
 
-    active_view(grid, state.force.x) .+= mass .* force_mass[1]
-    active_view(grid, state.force.y) .+= mass .* force_mass[2]
-    active_view(grid, state.force.z) .+= mass .* force_mass[3]
+    active_view(grid, state.force.x) .+= mass .* force.g[1]
+    active_view(grid, state.force.y) .+= mass .* force.g[2]
+    active_view(grid, state.force.z) .+= mass .* force.g[3]
     return nothing
 end
 
@@ -182,9 +181,9 @@ function apply_external_forces!(force::VectorFieldForce, grid::DenseGrid{T, S}, 
 
     kernel = vector_field_force_kernel!(backend)
     kernel(
-        state.momentum.x,
-        state.momentum.y,
-        state.momentum.z,
+        state.force.x,
+        state.force.y,
+        state.force.z,
         state.mass,
         dev_force_field,
         ndrange=size(state.mass)
@@ -225,7 +224,7 @@ function apply_external_forces!(force::VectorFieldForce, grid::SparseGrid{T, S, 
 
     kernel = sparse_vector_field_force_kernel!(backend)
     kernel(
-        state.momentum.x, state.momentum.y, state.momentum.z,
+        state.force.x, state.force.y, state.force.z,
         state.mass, grid.map_write.tile_keys,
         dev_force_field, domain.lo;
         ndrange=(TILE_VOLUME, n)
