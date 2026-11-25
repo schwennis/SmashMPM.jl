@@ -1,7 +1,7 @@
 abstract type AbstractGrid end
 
 
-struct GridNode{T}
+@kwdef struct GridNode{T}
     mass::T
     momentum::SVector{3, T}
     force::SVector{3, T}
@@ -47,3 +47,9 @@ include("grids/dense_grid.jl")
 include("grids/tile_keys.jl")
 include("grids/tile_map.jl")
 include("grids/sparse_grid.jl")
+
+
+# ---------------------------------------------------------------------------- #
+#                                  Grid Access                                 #
+# ---------------------------------------------------------------------------- #
+include("grids/grid_access.jl")

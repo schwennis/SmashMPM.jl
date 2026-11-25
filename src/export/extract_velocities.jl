@@ -1,8 +1,11 @@
 # Interpolate nodal velocities to particles on the CPU
+# One implementation for all grid types via the grid access interface
+# (src/grids/grid_access.jl). Nodes in inactive tiles (or outside the grid / a
+# BoxDomain) carry no mass and are skipped.
 using Base.Threads
-function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, spline::AbstractShapeFunction)
-    grid_state = grid.state_read
-    T = eltype(grid_state.mass)
+function extract_velocities(grid::AbstractGrid, particle_set::SoAParticleSet, spline::AbstractShapeFunction)
+    grid_read = read_access(grid)
+    T = eltype(grid.state_read.mass)
 
     num_particles = length(particle_set.particles.mass)
     velocities = Vector{SVector{3, T}}(undef, num_particles)
@@ -11,36 +14,9 @@ function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, splin
     inv_dx = grid.inv_dx
     origin = grid.origin
 
-    iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
-
     @threads for p_idx in 1:num_particles
         pos = particle_set.particles.pos[p_idx]
-        vel = zero(SVector{3, T})
-        B = zero(SMatrix{3, 3, T, 9})
-
-        grid_pos = grid_position(pos, inv_dx, origin)
-        base_node = get_support_base(spline, grid_pos)
-
-        for di in iterator_i, dj in iterator_j, dk in iterator_k
-            i = base_node[1] + di
-            j = base_node[2] + dj
-            k = base_node[3] + dk
-
-            if !checkbounds(Bool, grid_state.mass, i, j, k)
-                continue
-            end
-
-            natural_coords = grid_pos - SVector(i, j, k)
-            N = shapefunction(spline, natural_coords)
-            r_rel = - natural_coords * (1 / inv_dx)
-
-            m_node = grid_state.mass[i, j, k]
-            if m_node > sqrt(floatmin(T))  # Avoid division by zero
-                v_grid = grid_state.momentum[i, j, k] / m_node
-                vel += N * v_grid
-                B = B + B_update(spline, N, r_rel, v_grid)
-            end
-        end
+        vel, B = _g2p_velocity(grid_read, pos, origin, inv_dx, spline)
         velocities[p_idx] = vel
         affines[p_idx] = B * M_inv(spline, inv_dx)
     end
@@ -48,56 +24,36 @@ function extract_velocities(grid::DenseGrid, particle_set::SoAParticleSet, splin
     return velocities, affines
 end
 
+"""G2P of velocity and B matrix at position `pos` (zero if the position cannot be mapped)."""
+@inline function _g2p_velocity(grid, pos, origin, inv_dx::T, spline) where {T}
+    vel = zero(SVector{3, T})
+    B = zero(SMatrix{3, 3, T, 9})
 
-# SparseGrid: same G2P, nodes are looked up through the tile map of the read state.
-# Nodes in inactive tiles (or outside a BoxDomain) carry no mass and are skipped.
-function extract_velocities(grid::SparseGrid, particle_set::SoAParticleSet, spline::AbstractShapeFunction)
-    grid_state = grid.state_read
-    map        = grid.map_read
-    domain     = grid.domain
-    T = eltype(grid_state.mass)
+    grid_pos = grid_position(pos, inv_dx, origin)
+    position_ok(grid, grid_pos) || return vel, B    # SparseGrid: NaN or outside the key range
 
-    num_particles = length(particle_set.particles.mass)
-    velocities = Vector{SVector{3, T}}(undef, num_particles)
-    affines = Vector{SMatrix{3, 3, T, 9}}(undef, num_particles)
-
-    inv_dx = grid.inv_dx
-    origin = grid.origin
-
+    base_node = get_support_base(spline, grid_pos)
+    cache     = stencil_cache(grid, spline, base_node)
     iterator_i, iterator_j, iterator_k = get_support_offsets(spline)
 
-    @threads for p_idx in 1:num_particles
-        pos = particle_set.particles.pos[p_idx]
-        vel = zero(SVector{3, T})
-        B = zero(SMatrix{3, 3, T, 9})
+    for di in iterator_i, dj in iterator_j, dk in iterator_k
+        i = base_node[1] + di
+        j = base_node[2] + dj
+        k = base_node[3] + dk
 
-        grid_pos = grid_position(pos, inv_dx, origin)
-        if grid_pos_representable(grid_pos)
-            base_node = get_support_base(spline, grid_pos)
+        idx, status = node_slot(grid, cache, i, j, k)
+        status == NODE_OK || continue
 
-            for di in iterator_i, dj in iterator_j, dk in iterator_k
-                i = base_node[1] + di
-                j = base_node[2] + dj
-                k = base_node[3] + dk
+        natural_coords = grid_pos - SVector(i, j, k)
+        N = shapefunction(spline, natural_coords)
+        r_rel = - natural_coords * (1 / inv_dx)
 
-                l, t = find_node(map, domain, i, j, k)
-                t == 0 && continue
-
-                natural_coords = grid_pos - SVector(i, j, k)
-                N = shapefunction(spline, natural_coords)
-                r_rel = - natural_coords * (1 / inv_dx)
-
-                m_node = grid_state.mass[l, t]
-                if m_node > sqrt(floatmin(T))  # Avoid division by zero
-                    v_grid = grid_state.momentum[l, t] / m_node
-                    vel += N * v_grid
-                    B = B + B_update(spline, N, r_rel, v_grid)
-                end
-            end
+        m_node = node_mass(grid, idx)
+        if m_node > sqrt(floatmin(T))  # Avoid division by zero
+            v_grid = node_momentum(grid, idx) / m_node
+            vel += N * v_grid
+            B = B + B_update(spline, N, r_rel, v_grid)
         end
-        velocities[p_idx] = vel
-        affines[p_idx] = B * M_inv(spline, inv_dx)
     end
-
-    return velocities, affines
+    return vel, B
 end
