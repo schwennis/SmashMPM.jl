@@ -67,8 +67,9 @@ include("setup/initial_p2g.jl")
 
 include("export/extract_velocities.jl")
 include("export/exporter.jl")
+include("export/hdf5_exporter.jl")
 include("export/extract_particle_fields.jl")
-export AbstractExporter, HDF5Exporter, VTKExporter, write_output
+export AbstractExporter, HDF5Exporter, write_output
 
 include("setup/build_sim.jl")
 export AbstractBody, Body, SimulationSetup, build_mpm_model

@@ -152,34 +152,60 @@ _active(grid, field) = view(field, :, 1:grid.n_active_read)
         end
 
         # ------------------------------------------------------------------ #
-        @testset "Particles and grid share the same layout; options" begin
-            model   = models.sparse_open
-            n_part  = sum(ps -> length(ps.particles.mass), model.particle_sets)
-            m_part  = sum(ps -> sum(ps.particles.mass), model.particle_sets)
+        @testset "one group / ParaView block per particle set" begin
+            model = models.sparse_open
+            sets  = model.particle_sets
+            n_part = sum(ps -> length(ps.particles.mass), sets)
 
             path = write_output(HDF5Exporter(output_dir=dir, filename_prefix="both_", export_grid=true), model, 1)
             h5open(path, "r") do f
                 @test Set(keys(f)) ⊇ Set(["particles", "grid"])
-                @test size(read(f["particles/position"])) == (3, n_part)
-                @test size(read(f["particles/velocity"])) == (3, n_part)
-                @test size(read(f["particles/F"])) == (9, n_part)
-                @test sum(read(f["particles/mass"])) ≈ m_part
-                ws = read(f["particles/wave_speed"])
-                @test size(ws) == (n_part,)
-                @test maximum(ws) == SmashMPM.max_wavespeed(model)
+                @test Set(keys(f["particles"])) == Set(["ParticleSet$(i)" for i in eachindex(sets)])
                 @test read(attributes(f["particles"])["n_particles"]) == n_part
+                @test read(attributes(f["particles"])["n_sets"]) == length(sets)
                 @test read(attributes(f)["step"]) == 1
-                # no flat datasets in the file root anymore
-                @test !("position" in keys(f)) && !("mass" in keys(f))
+
+                for (i, ps) in enumerate(sets)
+                    g = f["particles/ParticleSet$(i)"]
+                    N = length(ps.particles.mass)
+                    @test read(attributes(g)["n_particles"]) == N
+                    @test read(attributes(g)["set_index"]) == i
+                    @test read(attributes(g)["material"]) == "NeoHookean"
+
+                    @test read(g["position"]) ≈ vcat(ps.particles.pos.x', ps.particles.pos.y', ps.particles.pos.z')
+                    @test size(read(g["velocity"])) == (3, N)
+                    @test size(read(g["affine"])) == (9, N)
+                    @test size(read(g["F"])) == (9, N)
+                    @test size(read(g["stress"])) == (9, N)
+                    @test read(g["mass"]) ≈ ps.particles.mass
+                    @test read(g["id"]) == Int.(ps.particles.id)
+                    @test all(==(i), read(g["set_index"]))
+                    @test !haskey(g, "von_mises")                 # not a default field
+                    @test !haskey(g, "mat_state")                 # NeoHookean has no material state
+
+                    # velocities are the G2P of the read grid, per set
+                    v, _ = SmashMPM.extract_velocities(model.grid, ps, model.shapefunction)
+                    @test read(g["velocity"]) ≈ reduce(hcat, v)
+                end
+                ws = reduce(vcat, [read(f["particles/ParticleSet$(i)/wave_speed"]) for i in eachindex(sets)])
+                @test maximum(ws) == SmashMPM.max_wavespeed(model)
+                # no flat particle datasets anymore
+                @test !haskey(f["particles"], "position") && !("position" in keys(f))
             end
 
             xmf = read(replace(path, ".h5" => ".xmf"), String)
-            @test occursin("$(basename(path)):/particles/position", xmf)
+            for i in eachindex(sets)
+                @test occursin("<Grid Name=\"ParticleSet$(i)\"", xmf)
+                @test occursin("$(basename(path)):/particles/ParticleSet$(i)/position", xmf)
+                @test occursin("$(basename(path)):/particles/ParticleSet$(i)/stress", xmf)
+            end
+            @test occursin("<Grid Name=\"MPM_Grid\"", xmf)
             @test occursin("$(basename(path)):/grid/position", xmf)
             @test occursin("$(basename(path)):/grid/momentum", xmf)
             @test occursin("$(basename(path)):/grid/force", xmf)
-            @test occursin("$(basename(path)):/particles/wave_speed", xmf)
-            @test !occursin("grid/wave_speed", xmf)
+            @test occursin("Name=\"Stress\" AttributeType=\"Tensor\"", xmf)
+            @test occursin("Name=\"Velocity\" AttributeType=\"Vector\"", xmf)
+            @test !occursin("MPM_Particles", xmf)
             @test !occursin("3DCoRectMesh", xmf)
 
             # grid only
@@ -189,6 +215,7 @@ _active(grid, field) = view(field, :, 1:grid.n_active_read)
                 @test !haskey(f, "particles")
                 @test haskey(f, "grid")
             end
+            @test !occursin("ParticleSet", read(replace(path, ".h5" => ".xmf"), String))
 
             # particles only (default)
             path = write_output(HDF5Exporter(output_dir=dir, filename_prefix="partonly_"), model, 3)
@@ -200,22 +227,111 @@ _active(grid, field) = view(field, :, 1:grid.n_active_read)
         end
 
         # ------------------------------------------------------------------ #
-        @testset "material state fields are written under particles/mat_state" begin
+        @testset "stress = material model of the stored state" begin
+            model = models.dense
+            path  = write_output(HDF5Exporter(output_dir=dir, filename_prefix="stress_",
+                                              particle_fields=(:stress, :von_mises)), model, 4)
+            h5open(path, "r") do f
+                for (i, ps) in enumerate(model.particle_sets)
+                    mat = ps.material
+                    σ_ref = map(ps.particles.F) do F            # NeoHookean, by hand
+                        J = det(F)
+                        (mat.μ * (F * F' - I) + mat.λ * log(J) * I) / J
+                    end
+                    σ = read(f["particles/ParticleSet$(i)/stress"])
+                    @test σ ≈ SmashMPM._matrices(σ_ref)
+                    @test any(!iszero, σ)
+                    # row-major layout, symmetric anyway: σ[2,1] == σ[1,2]
+                    @test σ[2, :] ≈ σ[4, :]
+                    vm = read(f["particles/ParticleSet$(i)/von_mises"])
+                    @test vm ≈ SmashMPM.von_mises.(σ_ref)
+                    @test all(>=(0), vm)
+                end
+            end
+        end
+
+        # ------------------------------------------------------------------ #
+        @testset "material state fields are written per set" begin
             T     = Float64
-            basalt = Basalt(T, eos=:murnaghan, elasticity=:hypoelastic)
-            body   = Body(Sphere(0.3, zero(SVector{3, T})), zero(SVector{3, T}), zero(SVector{3, T}), basalt)
-            model  = build_mpm_model((body,), SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid))
+            basalt = Basalt(T, eos=:murnaghan, elasticity=:hypoelastic, damage=:no_damage)
+            neo    = NeoHookean(ρ=1000.0, E=1e6, ν=0.3)
+            bodies = (
+                Body(Sphere(0.3, SVector(-0.4, 0.0, 0.0)), SVector(0.0, 0.0, 0.0), SVector(0.0, 0.0, 5.0), basalt),
+                Body(Sphere(0.3, SVector( 0.4, 0.0, 0.0)), zero(SVector{3, T}), zero(SVector{3, T}), neo),
+            )
+            model = build_mpm_model(bodies, SimulationSetup(dx=0.1, t_max=1.0, grid_type=SparseGrid))
+            for _ in 1:3
+                SmashMPM.step!(model)
+            end
 
             path = write_output(HDF5Exporter(output_dir=dir, filename_prefix="solid_", export_grid=true), model, 0)
             h5open(path, "r") do f
-                fields = keys(f["particles/mat_state"])
+                g1 = f["particles/ParticleSet1"]
+                @test read(attributes(g1)["material"]) == "SolidMaterial"
+                fields = keys(g1["mat_state"])
                 @test "c" in fields
                 @test "e" in fields
                 @test "eos_state" in fields
                 @test "elastic_state" in fields
-                @test "p" in keys(f["particles/mat_state/eos_state"])
+                @test "p" in keys(g1["mat_state/eos_state"])
+
+                # σ = s - p I for the hypoelastic solid without damage
+                s = read(g1["mat_state/elastic_state/s"])
+                p = read(g1["mat_state/eos_state/p"])
+                σ = read(g1["stress"])
+                @test σ ≈ s .- [1, 0, 0, 0, 1, 0, 0, 0, 1] .* p'  atol = 1e-8 * max(1, maximum(abs, σ))
+
+                # the NeoHookean set has no material state: no NaN padding anymore
+                @test !haskey(f["particles/ParticleSet2"], "mat_state")
             end
-            @test occursin("$(basename(path)):/particles/mat_state/c", read(replace(path, ".h5" => ".xmf"), String))
+            xmf = read(replace(path, ".h5" => ".xmf"), String)
+            @test occursin("$(basename(path)):/particles/ParticleSet1/mat_state/c", xmf)
+            @test occursin("Name=\"mat_state.eos_state.p\"", xmf)
+            @test !occursin("ParticleSet2/mat_state", xmf)
+
+            # selection of single material state fields
+            path = write_output(HDF5Exporter(output_dir=dir, filename_prefix="solidsel_",
+                                             particle_fields=(:mass, "mat_state/eos_state")), model, 0)
+            h5open(path, "r") do f
+                g = f["particles/ParticleSet1"]
+                @test Set(keys(g)) == Set(["position", "mass", "mat_state"])
+                @test Set(keys(g["mat_state"])) == Set(["eos_state"])
+            end
+        end
+
+        # ------------------------------------------------------------------ #
+        @testset "field selection" begin
+            model = models.sparse_open
+            path = write_output(HDF5Exporter(output_dir=dir, filename_prefix="sel_",
+                                             particle_fields=(:mass,), export_grid=true,
+                                             grid_fields=(:mass, :velocity)), model, 5)
+            h5open(path, "r") do f
+                @test Set(keys(f["particles/ParticleSet1"])) == Set(["position", "mass"])
+                @test Set(keys(f["grid"])) == Set(["position", "mass", "velocity", "origin", "dx"])
+                m = read(f["grid/mass"]); v = read(f["grid/velocity"])
+                g = model.grid
+                @test sum(m .* v[1, :]) ≈ sum(_active(g, g.state_read.momentum.x)) atol = 1e-10
+            end
+            xmf = read(replace(path, ".h5" => ".xmf"), String)
+            @test !occursin("/particles/ParticleSet1/velocity", xmf)
+            @test occursin("/grid/velocity", xmf)
+
+            # :all / :default / single symbol
+            path = write_output(HDF5Exporter(output_dir=dir, filename_prefix="all_", particle_fields=:all), model, 6)
+            h5open(path, "r") do f
+                @test haskey(f["particles/ParticleSet1"], "von_mises")
+                @test haskey(f["particles/ParticleSet1"], "stress")
+            end
+            ex = HDF5Exporter(particle_fields=(:default, :von_mises))
+            @test ex.particle_fields.names == Set([SmashMPM.DEFAULT_PARTICLE_FIELDS[1:end-1]..., :von_mises])
+            @test ex.particle_fields.mat_state == ["mat_state"]
+            @test HDF5Exporter(particle_fields=:stress).particle_fields.names == Set([:stress])
+            @test HDF5Exporter(particle_fields=["position", "F"]).particle_fields.names == Set([:F])
+
+            # typos fail early, when the exporter is created
+            @test_throws ArgumentError HDF5Exporter(particle_fields=(:stres,))
+            @test_throws ArgumentError HDF5Exporter(grid_fields=(:stress,))
+            @test_throws ArgumentError HDF5Exporter(grid_fields=("mat_state/e",))
         end
     finally
         rm(dir; recursive=true, force=true)

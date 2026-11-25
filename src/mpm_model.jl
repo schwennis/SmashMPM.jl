@@ -41,16 +41,17 @@ function model_to_cpu(model::MPMModel)
     cpu_grid = grid_to_cpu(model.grid)
 
     cpu_model = MPMModel(
-        cpu_particle_sets,
-        cpu_grid,
-        model.boundary_condition,
-        model.external_force,
-        model.shapefunction,
-        CPU(),
-        model.t,
-        model.t_max,
-        model.dt_max,
-        model.cfl_number
+        particle_sets = cpu_particle_sets,
+        grid = cpu_grid,
+        boundary_condition = model.boundary_condition,
+        external_force = model.external_force,
+        shapefunction = model.shapefunction,
+        backend = CPU(),
+        t = model.t,
+        t_max = model.t_max,
+        dt_previous = model.dt_previous,
+        dt_max = model.dt_max,
+        cfl_number = model.cfl_number
     )
     return cpu_model
 end
