@@ -73,9 +73,12 @@
     F_old = particles.F[p_idx]
     mat_state = particles.mat_state[p_idx]
 
+    # The material model gets the trial F (needs det F_n = det F_new / det(I + C dt)) and
+    # regularizes it internally; the identical regularization (state of t_n) is stored.
     F_new = (one(SMatrix{3, 3, T, 9}) + C * dt) * F_old
-    particles.F[p_idx] = F_new
     σ, mat_state_write = material_model(material, mat_state, F_new, C, V0, mass, dt, 1/inv_dx)
+    F_new = regularize_deformation(material, mat_state, F_new)
+    particles.F[p_idx] = F_new
     particles.mat_state[p_idx] = mat_state_write
     J = det(F_new)
     vol_new = J * V0

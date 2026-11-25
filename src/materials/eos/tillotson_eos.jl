@@ -32,11 +32,26 @@ reference_soundspeed(eos::TillotsonEOS) = sqrt(eos.A / eos.ρ0)
 #                           update_eos implementation                          #
 # ---------------------------------------------------------------------------- #
 @inline function update_eos(eos::TillotsonEOS{T}, ::TillotsonState{T}, ρ::T, e::T) where {T}
-    p, c = tillotson_eos_and_soundspeed(eos, ρ, e)
+    p, c, _ = _tillotson_p_c_dpde(eos, ρ, e)
     return TillotsonState(p), c
 end
 
+# Same as update_eos, plus ∂p/∂e|_ρ for the implicit (trapezoidal) energy update
+@inline function update_eos_dpde(eos::TillotsonEOS{T}, ::TillotsonState{T}, ρ::T, e::T) where {T}
+    p, c, dp_de = _tillotson_p_c_dpde(eos, ρ, e)
+    return TillotsonState(p), c, dp_de
+end
+
+# Linearized pressure at the corrected energy (same linearization as the energy update)
+@inline correct_eos_energy(::TillotsonEOS{T}, st::TillotsonState{T}, ρ, e_new, dpde, Δe) where {T} =
+    TillotsonState(st.p + dpde * Δe)
+
 @inline function tillotson_eos_and_soundspeed(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
+    p, c, _ = _tillotson_p_c_dpde(eos, ρ, e)
+    return p, c
+end
+
+@inline function _tillotson_p_c_dpde(eos::TillotsonEOS{T}, ρ::T, e::T) where {T}
     ρ0 = eos.ρ0
     Eiv = eos.Eiv
     Ecv = eos.Ecv
@@ -66,7 +81,9 @@ end
     end
 
     c_squared = max(dp_dρ + (p / ρ_safe^2) * dp_de, zero(T))
-    return p, sqrt(c_squared)
+    # e < 0 is clipped to 0 above, so p does not depend on e there
+    dp_de_eff = e < zero(T) ? zero(T) : dp_de
+    return p, sqrt(c_squared), dp_de_eff
 end
 
 # ---------------------------------------------------------------------------- #

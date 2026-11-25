@@ -16,6 +16,8 @@
     k::Float64              # Weibull coefficient (1/m^3)
     n_tot::Float64          # total number of flaws in the body
     cg_factor::T = 0.4      # crack growth speed c_g = cg_factor * c_p
+    D_frac::T = 0.99        # D >= D_frac: particle counts as fractured (isotropic F, no q in expansion)
+    J_max::T = 10.0         # upper bound of det F for fractured particles
 end
 
 struct GradyKippState{T}
@@ -58,6 +60,8 @@ damage_variable(st::GradyKippState) = st.D
 
 @inline degradation(::GradyKippDamage, st::GradyKippState) = one(st.D) - st.D
 @inline degrade_pressure(::GradyKippDamage, st::GradyKippState, p) = p < zero(p) ? (one(st.D) - st.D) * p : p
+@inline is_fractured(dm::GradyKippDamage, st::GradyKippState) = st.D >= dm.D_frac
+@inline fractured_max_J(dm::GradyKippDamage) = dm.J_max
 
 
 @inline function update_damage(dm::GradyKippDamage, st::GradyKippState{T}, s, _pl, th,

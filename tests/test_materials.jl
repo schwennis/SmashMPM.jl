@@ -26,4 +26,5 @@ end
 
 @testset "Modular SolidMaterial Pipeline" begin
     include("materials/test_solidmaterial.jl")
+    include("materials/test_energy_update.jl")
 end

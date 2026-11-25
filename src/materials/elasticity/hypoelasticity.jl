@@ -21,3 +21,8 @@ end
 
 @inline consistent_elastic_state(::HypoElasticity, ::HypoElasticState, s, kin::Kinematics) =
     HypoElasticState(s)
+
+# s is the Cauchy deviator -> τ' = J s, stored energy J s:s / (4μ) per reference volume
+@inline kirchhoff_deviator(::HypoElasticity, st::HypoElasticState, J) = J * st.s
+@inline elastic_energy(el::HypoElasticity, st::HypoElasticState, J) =
+    iszero(el.μ) ? zero(J) : J * dot(st.s, st.s) / (4el.μ)

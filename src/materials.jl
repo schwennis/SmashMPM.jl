@@ -12,6 +12,16 @@ end
 
 
 """
+    regularize_deformation(material, mat_state, F) -> F
+
+Regularized deformation gradient that is stored on the particle after the update
+(e.g. isotropic F for fractured particles). `mat_state` is the state of t_n.
+Default: F unchanged.
+"""
+@inline regularize_deformation(::AbstractMaterial, mat_state, F) = F
+
+
+"""
     initial_material_state(material, rng, n_p, V)
 
 Initial state of one of the `n_p` particles of a body with volume `V`.

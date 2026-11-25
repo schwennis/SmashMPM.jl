@@ -20,6 +20,9 @@ reference_soundspeed(eos::MurnaghanEOS) = sqrt(eos.K0 / eos.ρ0)
 # ---------------------------------------------------------------------------- #
 #                           update_eos implementation                          #
 # ---------------------------------------------------------------------------- #
+# p does not depend on e -> the predictor state is already the final state
+@inline correct_eos_energy(::MurnaghanEOS, st::MurnaghanState, ρ, e_new, dpde, Δe) = st
+
 @inline function update_eos(eos::MurnaghanEOS{T}, ::MurnaghanState{T}, ρ::T, e::T) where {T}
     η = max(ρ / eos.ρ0, eps(T))
 
