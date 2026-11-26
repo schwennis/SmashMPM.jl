@@ -16,7 +16,7 @@
 #
 #   1. Kinematics           F = regularize_deformation(damage, damage_state, F)   (fractured: J^{1/3} I)
 #                           kin = Kinematics(F, C, V0, m, dt)
-#   2. Thermodynamics       th = thermo(eos, eos_state, e)
+#   2. Thermodynamics       eos_0 = EoS(ρ_{n+1}, e_n);  th = thermo(eos, eos_0, e_n)   (time-consistent p for steps 4, 5)
 #   3. Elastic Predictor    s_tr, el_tr, G = elastic_trial(elasticity, elastic_state, kin)
 #   4. Plastic Corrector    s, pl = return_map(plasticity, plastic_state, s_tr, G, th, kin)
 #                           el = consistent_elastic_state(elasticity, el_tr, s, kin)
@@ -26,7 +26,7 @@
 #   7. Energy Update (generic, per unit mass, ρ0 = m / V0)
 #        heat = [½(τ_n + τ_{n+1}) : D dt - (W_el,{n+1} - W_el,n)] / ρ0
 #        e    = e_n + heat - (½(p_n + p_{n+1}) + q) (J_{n+1} - J_n) / ρ0      (trapezoidal, implicit in p)
-#   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)     (J > 1: c_b = c_0)
+#   8. EoS                  p = p(eos_0) + ∂p/∂e (e - e_n)   (correct_eos_energy; J > 1: c_b = c_0)
 #   9. Assembly of σ        σ = s - (p + q) * I
 #
 #
@@ -114,11 +114,12 @@ trapezoidal energy update. Default: ∂p/∂e = 0 (exact for barotropic EoS like
 end
 
 """
-    correct_eos_energy(eos, eos_state_pred, ρ, e_new, dpde, Δe) -> eos_state_write
+    correct_eos_energy(eos, eos_state_ref, ρ, e_new, dpde, Δe) -> eos_state_write
 
-EoS state at the corrected energy `e_new = e_pred + Δe`, starting from the state evaluated
-at `e_pred` (density ρ unchanged). Default: exact re-evaluation with `update_eos`. EoS with
-a cheap alternative overwrite it: linearization p + ∂p/∂e Δe (Tillotson) or reuse (Murnaghan).
+EoS state at the energy `e_new = e_ref + Δe` (density ρ unchanged), starting from the state
+`eos_state_ref` that was evaluated at `e_ref` (here: the old energy e_n at the new density).
+Default: exact re-evaluation with `update_eos`. EoS with a cheap alternative overwrite it:
+linearization p + ∂p/∂e Δe (Tillotson) or reuse of the state (Murnaghan, p independent of e).
 """
 @inline correct_eos_energy(eos::AbstractEquationOfState, st, ρ, e_new, dpde, Δe) = first(update_eos(eos, st, ρ, e_new))
 
@@ -344,7 +345,7 @@ end
 # ---------------------------------------------------------------------------- #
 #   1. Kinematics           F = regularize_deformation(damage, damage_state, F)   (fractured: J^{1/3} I)
 #                           kin = Kinematics(F, C, V0, m, dt)
-#   2. Thermodynamics       th = thermo(eos, eos_state, e)
+#   2. Thermodynamics       eos_0 = EoS(ρ_{n+1}, e_n);  th = thermo(eos, eos_0, e_n)   (time-consistent p for steps 4, 5)
 #   3. Elastic Predictor    s_tr, el_tr, G = elastic_trial(elasticity, elastic_state, kin)
 #   4. Plastic Corrector    s, pl = return_map(plasticity, plastic_state, s_tr, G, th, kin)
 #                           el = consistent_elastic_state(elasticity, el_tr, s, kin)
@@ -354,7 +355,7 @@ end
 #   7. Energy Update (generic, per unit mass, ρ0 = m / V0)
 #        heat = [½(τ_n + τ_{n+1}) : D dt - (W_el,{n+1} - W_el,n)] / ρ0
 #        e    = e_n + heat - (½(p_n + p_{n+1}) + q) (J_{n+1} - J_n) / ρ0      (trapezoidal, implicit in p)
-#   8. EoS                  p, c_b = update_eos(eos, eos_state, ρ, e)     (J > 1: c_b = c_0)
+#   8. EoS                  p = p(eos_0) + ∂p/∂e (e - e_n)   (correct_eos_energy; J > 1: c_b = c_0)
 #   9. Assembly of σ        σ = s - (p + q) * I
 @inline function material_model(mat::SolidMaterial, st::SolidMaterialState, F::SMatrix{3,3,T,9}, C::SMatrix{3,3,T,9}, V0::T, m::T, dt::T, dx::T) where T
     I3 = one(SMatrix{3,3,T,9})
@@ -373,7 +374,15 @@ end
     D      = (kin.C + kin.C') * T(0.5)
 
     # 2. Thermodynamics
-    th  = thermo(mat.eos, st.eos_state, st.e)
+    # th_n: pressure that acted during the step (energy update, trapezoidal rule).
+    # th:   pressure at the NEW density with the old energy, p(ρ_{n+1}, e_n). Strength and damage
+    #       are evaluated with the NEW deviator s_{n+1}, so they need a pressure of the same time
+    #       level. With p_n a particle that is compressed by a shock front in one step has s_{n+1} but
+    #       p = p_n ≈ 0: σ_max = s_max - p_n > 0 looks like tension and destroys it (D = 1).
+    #       This evaluation is also the start of the linearized energy update below (one EoS call).
+    th_n = thermo(mat.eos, st.eos_state, st.e)
+    eos_0, c_b, dpde = update_eos_dpde(mat.eos, st.eos_state, ρ, st.e)
+    th   = thermo(mat.eos, eos_0, st.e)
 
     # 3. Elastic Predictor
     s_tr, el_tr, G = elastic_trial(mat.elasticity, st.elastic_state, kin)
@@ -410,11 +419,10 @@ end
     #     Predictor with p_n, then one linearized correction p(e) ≈ p* + k (e - e*):
     #     e = e* - ½ (p* - p_n) Δv / (1 + ½ k Δv)
     Δv     = (J - J_n) / ρ0
-    p_n    = degrade_pressure(mat.damage, st.damage_state, T(th.p))   # pressure that acted at t_n
+    p_n    = degrade_pressure(mat.damage, st.damage_state, T(th_n.p))   # pressure that acted at t_n
     e_pred = st.e + heat - (p_n + q) * Δv
 
-    eos_pred, c_b, dpde = update_eos_dpde(mat.eos, st.eos_state, ρ, e_pred)
-    p_raw  = T(pressure(eos_pred))
+    p_raw  = T(th.p) + T(dpde) * (e_pred - st.e)                        # p(ρ_{n+1}, e*) linearized in e
     p_pred = T(degrade_pressure(mat.damage, dm_st, p_raw))
     k      = iszero(p_raw) ? T(dpde) : T(dpde) * (p_pred / p_raw)     # degradation also scales ∂p/∂e
 
@@ -423,10 +431,10 @@ end
     denom  = isfinite(denom) ? max(denom, T(0.5)) : one(T)
     e      = e_pred - T(0.5) * (p_pred - p_n) * Δv / denom
 
-    # 8. EoS at the corrected energy: NO second full evaluation. p_{n+1} = p* + ∂p/∂e (e - e*)
-    #    is exactly the pressure that the implicit energy equation above was solved with, so e and
-    #    the stored p stay consistent; c_b comes from the predictor (O(Δe) difference).
-    eos_st = correct_eos_energy(mat.eos, eos_pred, ρ, e, T(dpde), e - e_pred)
+    # 8. EoS at the corrected energy: p_{n+1} = p(ρ_{n+1}, e_n) + ∂p/∂e (e - e_n) is exactly the
+    #    pressure that the implicit energy equation above was solved with, so e and the stored p stay
+    #    consistent. c_b comes from the evaluation at e_n (O(Δe) difference).
+    eos_st = correct_eos_energy(mat.eos, eos_0, ρ, e, T(dpde), e - st.e)
     p = degrade_pressure(mat.damage, dm_st, pressure(eos_st))
 
     # In expansion the EoS sound speed is unreliable (cold expanded Tillotson branch,
