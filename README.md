@@ -13,7 +13,7 @@ A Julia implementation of the Material Point Method (MPM) for impact and hyperve
  
 ## Installation
  
-Julia 1.12 or newer is required.
+Julia 1.13 or newer is required.
 1. Clone the repo:
 ```bash
 git clone https://github.com/schwennis/SmashMPM.jl
