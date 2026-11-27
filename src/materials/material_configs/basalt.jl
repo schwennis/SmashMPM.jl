@@ -58,11 +58,10 @@ function Basalt(
     damage_inst = if damage isa AbstractDamage
         damage
     elseif damage === :grady_kipp
-        GradyKippDamage{T}(
-            E     = T(53.1e9),
-            m     = 8.5,
-            k     = 3.0e39,
-            n_tot = 1.0e9,
+        GradyKippDamage{T}(        # flaws are distributed per body (Benz & Asphaug)
+            E = T(53.1e9),
+            m = 8.5,
+            k = 3.0e39,
         )
     elseif damage === :no_damage
         NoDamage()

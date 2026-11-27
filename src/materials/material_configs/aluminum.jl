@@ -56,11 +56,10 @@ function Aluminum(
     damage_inst = if damage isa AbstractDamage
         damage
     elseif damage === :grady_kipp
-        GradyKippDamage{T}(
-            E     = T(69.0e9),
-            m     = 9.0,
-            k     = 1.3e27,           # σ_t = 310 MPa at V_ref = 1 cm^3
-            n_tot = 1.0e10,
+        GradyKippDamage{T}(        # flaws are distributed per body (Benz & Asphaug)
+            E = T(69.0e9),
+            m = 9.0,
+            k = 1.3e27,               # σ_t = 310 MPa at V_ref = 1 cm^3
         )
     elseif damage === :no_damage
         NoDamage()

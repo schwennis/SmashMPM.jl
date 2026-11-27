@@ -94,6 +94,18 @@ Overwrite this for components with randomly distributed initial states.
 """
 init_state(model_component, rng, n_p, V) = init_state(model_component)
 
+"""
+    init_states(model_component, rng, n_p, V) -> (model_component, states)
+
+Initialize the states of ALL `n_p` particles of a body with volume `V` at once.
+Overwrite this for components whose initial states are coupled across the body
+(e.g. Grady-Kipp flaws after Benz & Asphaug). The returned component replaces the
+original one in the particle set (it may e.g. carry the sampled data).
+Default: independent `init_state(model_component, rng, n_p, V)` per particle.
+"""
+init_states(model_component, rng, n_p, V) =
+    (model_component, [init_state(model_component, rng, n_p, V) for _ in 1:n_p])
+
 
 # Equation of State ----------------------------------------------------------- #
 """
@@ -292,6 +304,9 @@ struct NoViscosity <: AbstractArtificialViscosity end
     ρ::T
 end
 
+# Components may hold arrays (Grady-Kipp flaws) that have to move to the device
+Adapt.@adapt_structure SolidMaterial
+
 @kwdef struct SolidMaterialState{T,
                             EoSState<:AbstractEoSState,
                             ELState,
@@ -330,6 +345,21 @@ function initial_material_state(mat::SolidMaterial, rng, n_p, V)
         plastic_state = init_state(mat.plasticity, rng, n_p, V),
         damage_state  = init_state(mat.damage, rng, n_p, V),
     )
+end
+
+# All particles of a body at once: plasticity and damage may be coupled across the body
+# (Grady-Kipp flaws), their returned components replace the ones of the material.
+function initial_material_states(mat::SolidMaterial, rng, n_p, V)
+    st0 = initial_material_state(mat)
+    plasticity, pl_states = init_states(mat.plasticity, rng, n_p, V)
+    damage,     dm_states = init_states(mat.damage, rng, n_p, V)
+    mat_body = SolidMaterial(; eos = mat.eos, elasticity = mat.elasticity, plasticity, damage,
+                             viscosity = mat.viscosity, ρ = mat.ρ)
+    states = [SolidMaterialState(c = st0.c, e = st0.e, eos_state = st0.eos_state,
+                                 elastic_state = st0.elastic_state,
+                                 plastic_state = pl_states[i], damage_state = dm_states[i])
+              for i in 1:n_p]
+    return mat_body, states
 end
 
 @inline soundspeed(::SolidMaterial, mat_state::SolidMaterialState) = mat_state.c

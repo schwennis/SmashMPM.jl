@@ -128,24 +128,32 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
         mat_state_type = typeof(initial_material_state(data.material))
         n_p = length(data.pos)
         V_body = sum(data.vol)
-        
+
+        # States of all particles of the body at once (e.g. Grady-Kipp flaws are distributed
+        # over the whole body). The returned material carries the sampled data of THIS body.
+        material, states = initial_material_states(data.material, rng, n_p, V_body)
+
         # Lokale Arrays pro Body auf CPU
         particle_vector = Vector{Particle{T, mat_state_type}}(undef, n_p)
 
         @inbounds for i in 1:n_p
-            state_i = initial_material_state(data.material, rng, n_p, V_body)
+            state_i = states[i]
             particle_vector[i] = Particle(
-                id=particle_counter, 
-                pos=data.pos[i], 
-                mass=data.mass[i], 
-                V0=data.vol[i], 
+                id=particle_counter,
+                pos=data.pos[i],
+                mass=data.mass[i],
+                V0=data.vol[i],
                 mat_state=state_i,
-                wave_speed=T(soundspeed(data.material, state_i) + norm(data.vel[i])),  # initial CFL
+                wave_speed=T(soundspeed(material, state_i) + norm(data.vel[i])),  # initial CFL
             )
             particle_counter += UInt32(1)
         end
 
-        particle_set = setup.particle_set_type(particle_vector, data.material, setup.backend)
+        # arrays inside the material (flaws) go to the backend as well. adapt(backend, x)
+        # (KernelAbstractions) walks the nested structs (Adapt.@adapt_structure) and
+        # converts every array to the array type of the backend.
+        material_dev = adapt(setup.backend, material)
+        particle_set = setup.particle_set_type(particle_vector, material_dev, setup.backend)
 
         return (
             set    = particle_set,

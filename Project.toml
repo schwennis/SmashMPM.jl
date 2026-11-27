@@ -6,6 +6,8 @@ authors = ["Dennis Schwab"]
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
@@ -19,6 +21,8 @@ StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 [compat]
 Adapt = "4.8.0"
 Atomix = "1.7.0"
+CairoMakie = "0.15.17"
+Glob = "1.5.0"
 HDF5 = "0.17.4"
 JET = "0.13.5"
 JLD2 = "0.6.7"

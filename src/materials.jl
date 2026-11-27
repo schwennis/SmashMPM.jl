@@ -29,6 +29,18 @@ Defaults to the deterministic `initial_material_state(material)`.
 """
 initial_material_state(material::AbstractMaterial, rng, n_p, V) = initial_material_state(material)
 
+"""
+    initial_material_states(material, rng, n_p, V) -> (material, states)
+
+Initial states of ALL `n_p` particles of a body with volume `V`, used by
+`build_mpm_model`. The returned material is the one of the particle set; it may
+carry data that was sampled for this body (e.g. the Grady-Kipp flaws), so every
+body gets its own instance. Default: `initial_material_state(material, rng, n_p, V)`
+per particle and the unchanged material.
+"""
+initial_material_states(material::AbstractMaterial, rng, n_p, V) =
+    (material, [initial_material_state(material, rng, n_p, V) for _ in 1:n_p])
+
 
 # ---------------------------------------------------------------------------- #
 #                     Internal energy (transfer heat bookkeeping)              #

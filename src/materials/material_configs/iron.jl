@@ -58,11 +58,10 @@ function Iron(
     damage_inst = if damage isa AbstractDamage
         damage
     elseif damage === :grady_kipp
-        GradyKippDamage{T}(
-            E     = T(211.0e9),
-            m     = 9.0,
-            k     = 1.0e31,           # σ_t = 350 MPa at V_ref = 1 cm^3
-            n_tot = 1.0e10,
+        GradyKippDamage{T}(        # flaws are distributed per body (Benz & Asphaug)
+            E = T(211.0e9),
+            m = 9.0,
+            k = 1.0e31,               # σ_t = 350 MPa at V_ref = 1 cm^3
         )
     elseif damage === :no_damage
         NoDamage()

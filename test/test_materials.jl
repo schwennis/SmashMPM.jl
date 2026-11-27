@@ -6,7 +6,7 @@
 #   - objectivity (rigid rotations produce no stress)
 #   - EoS: analytic values, continuity, thermodynamic consistency of c and ∂p/∂e
 #   - return mapping: consistency condition and closed-form solutions
-#   - damage: Weibull statistics, growth law, caps
+#   - damage: explicit Weibull flaws (Benz & Asphaug), growth law, caps
 #   - SolidMaterial: reference state, stress assembly, energy update (heat ≥ 0,
 #     isentropic loops close, second order in Δt)
 
@@ -241,33 +241,47 @@ end
 #                         Damage and artificial viscosity                      #
 # ---------------------------------------------------------------------------- #
 @testset "Grady-Kipp damage" begin
-    dm  = GradyKippDamage{Float64}(E = 53.1e9, m = 8.5, k = 3.0e39, n_tot = 1.0e9)   # basalt
+    dm  = GradyKippDamage{Float64}(E = 53.1e9, m = 8.5, k = 3.0e39)   # basalt
     V   = 4 / 3 * π * 0.03^3
     n_p = 1000
     k(dt) = kin(I3, zero(M3); V0 = V / n_p, m = 2700.0 * V / n_p, dt = dt)
     c = 5000.0
 
-    # Weibull flaws, resolution independent (Yan et al. 2026, Sec. 3.3)
-    states = [init_state(dm, Xoshiro(i), n_p, V) for i in 1:n_p]
-    ε_V    = (dm.k * V)^(-1 / dm.m)
-    @test all(st -> st.D == 0 && ε_V <= st.ε_min <= 10ε_V && st.m_p > 0, states)
-    @test sum(st -> st.ε_min, states) / n_p ≈ 10dm.m / (dm.m + 1) * ε_V rtol = 3e-2
-    @test sum(st -> st.n_f, states) / n_p ≈ dm.n_tot / n_p rtol = 1e-2
+    # Explicit Weibull flaws (Benz & Asphaug 1995): flaw j has ε_j = (j / kV)^(1/m) and
+    # belongs to a random particle, until every particle has at least one flaw
+    dm_b, states = S.init_states(dm, Xoshiro(1), n_p, V)
+    flaws  = Float64.(dm_b.flaws)
+    N      = length(flaws)
+    kV     = dm.k * V
+    own(st) = flaws[st.first_flaw:st.first_flaw + st.n_flaws - 1]
+    @test all(st -> st.D == 0 && st.n_flaws >= 1, states)
+    @test states[1].first_flaw == 1 && sum(st -> st.n_flaws, states) == N           # CSR: no gaps,
+    @test all(i -> states[i + 1].first_flaw == states[i].first_flaw + states[i].n_flaws, 1:n_p - 1)  # no overlap
+    @test all(st -> issorted(own(st)), states)
+    @test sort(flaws) ≈ ((1:N) ./ kV) .^ (1 / dm.m) rtol = 1e-6                     # Weibull thresholds
+    @test minimum(flaws) ≈ kV^(-1 / dm.m) rtol = 1e-6                               # weakest flaw of the body
+    @test 0.5 * n_p * log(n_p) < N < 3 * n_p * log(n_p)                              # coupon collector ≈ n_p ln n_p
+    @test S.init_states(dm, Xoshiro(1), n_p, V)[1].flaws == dm_b.flaws               # reproducible
+    @test_throws ErrorException init_state(dm, Xoshiro(1), n_p, V)                   # no per-particle sampling
 
-    st = S.GradyKippState(0.0, 1e-4, 8.5, 1.0e6)
-    upd(st, p, dt) = S.update_damage(dm, st, zero(M3), S.NullState(), (p = p, T = 0.0), k(dt), c)
-    @test upd(st, 1e9, 1e-7) == st                          # compression: no growth
+    # Growth law with three known flaws
+    dmf = GradyKippDamage{Float64}(E = 53.1e9, m = 8.5, k = 3.0e39, flaws = Float32[1e-4, 2e-4, 4e-4])
+    st  = S.GradyKippState(0.0, Int32(1), Int32(3))
+    upd(st, p, dt) = S.update_damage(dmf, st, zero(M3), S.NullState(), (p = p, T = 0.0), k(dt), c)
+    @test upd(st, 1e9, 1e-7) == st                                  # compression: no growth
+    @test upd(st, -0.9e-4 * dmf.E, 1e-7) == st                      # below the weakest flaw
+    @test upd(S.init_state(dmf), -1e-2 * dmf.E, 1.0).D == 0         # flawless particle
 
-    # tension with ε_eff = 2 ε_min: dD^⅓/dt = n_act c_g / R_s, capped at (n_act / n_f)^⅓
-    p_t   = -2 * dm.E * st.ε_min
-    n_act = 2.0^st.m_p
-    R_s   = cbrt(3 * V / n_p / (4π))
-    @test cbrt(upd(st, p_t, 1e-11).D) ≈ 1e-11 * n_act * 0.4c / R_s
+    # tension with ε = 2.5e-4: two active flaws, dD^⅓/dt = n_act c_g / R_s, D <= n_act / n_f
+    p_t = -2.5e-4 * dmf.E
+    R_s = cbrt(3 * V / n_p / (4π))
+    @test cbrt(upd(st, p_t, 1e-11).D) ≈ 1e-11 * 2 * 0.4c / R_s
     st_max = upd(st, p_t, 1.0)
-    @test st_max.D ≈ n_act / st.n_f
-    @test upd(st_max, p_t, 1.0).D >= st_max.D                # damage never heals
+    @test st_max.D ≈ 2 / 3
+    @test upd(st_max, -0.5e-4 * dmf.E, 1.0) == st_max                # damage never heals
+    @test upd(st_max, -1e-3 * dmf.E, 1.0).D == 1                     # all flaws active: destroyed
 
-    st_d = S.GradyKippState(0.25, 1e-4, 8.5, 1.0e6)
+    st_d = S.GradyKippState(0.25, Int32(1), Int32(3))
     @test S.degradation(dm, st_d) == 0.75
     @test S.degrade_pressure(dm, st_d, -4.0) == -3.0 && S.degrade_pressure(dm, st_d, 4.0) == 4.0
 
@@ -317,7 +331,7 @@ von_mises(σ) = sqrt(1.5) * norm(σ - tr(σ) / 3 * I3)
 with_energy(st, e) = SolidMaterialState(c = st.c, e = e, eos_state = st.eos_state, elastic_state = st.elastic_state,
                                         plastic_state = st.plastic_state, damage_state = st.damage_state)
 with_damage(st, D) = SolidMaterialState(c = st.c, e = st.e, eos_state = st.eos_state, elastic_state = st.elastic_state,
-                                        plastic_state = st.plastic_state, damage_state = S.GradyKippState(D, 1e-4, 8.5, 1e6))
+                                        plastic_state = st.plastic_state, damage_state = S.GradyKippState(D, Int32(1), Int32(0)))
 
 @testset "SolidMaterial: reference state, stress assembly" begin
     V0, dx, dt = 1e-6, 1e-3, 1e-7
@@ -421,16 +435,18 @@ end
 end
 
 @testset "SolidMaterial: damage and plasticity inside material_model" begin
-    # Grady-Kipp (basalt, sampled flaws): tension breaks the point and removes the
-    # tensile stress, compression leaves it intact and identical to the undamaged material
+    # Grady-Kipp (basalt, flaws of a body of n_p points): tension breaks the point and removes
+    # the tensile stress, compression leaves it intact and identical to the undamaged material.
+    # The point with the most flaws is driven (fastest growth, D = 1 well within 1 µs).
     n_p, V0 = 1000, 1e-6
-    gk, intact = Basalt(Float64), Basalt(Float64; damage = :no_damage)
-    st_gk = initial_material_state(gk, Xoshiro(3), n_p, n_p * V0)
+    intact = Basalt(Float64; damage = :no_damage)
+    gk, states_gk = initial_material_states(Basalt(Float64), Xoshiro(3), n_p, n_p * V0)
+    st_gk = argmax(st -> st.damage_state.n_flaws, states_gk)
     for (C, broken) in ((1e4 * I3, true), (-1e4 * I3, false))
         st, _, _, σ  = drive(gk, st_gk, t -> C, 1e-6, 50; V0)
         _, _, _, σ_i = drive(intact, initial_material_state(intact), t -> C, 1e-6, 50; V0)
         if broken
-            @test st.damage_state.D == 1                        # n_act / n_f capped at 1 here
+            @test st.damage_state.D == 1                        # all flaws active: n_act / n_f = 1
             @test norm(σ) < 1e-6 * norm(σ_i) && tr(σ_i) > 0     # no tension in fragments
         else
             @test st.damage_state.D == 0
@@ -454,7 +470,7 @@ end
 
 @testset "SolidMaterial: fractured particles" begin
     V0, dx, dt = 1e-6, 1e-3, 1e-8
-    dm  = GradyKippDamage{Float64}(E = 53.1e9, m = 8.5, k = 3.0e39, n_tot = 1.0e9)
+    dm  = GradyKippDamage{Float64}(E = 53.1e9, m = 8.5, k = 3.0e39)
     mat = Basalt(Float64; damage = dm, viscosity = BulkViscosity())
     nov = Basalt(Float64; damage = dm)
     m   = mat.ρ * V0

@@ -18,11 +18,11 @@ include("helpers.jl")
 
 include("materials.jl")
 export AbstractMaterial, AbstractMaterialState, NoMaterialState     # Abstract types
-export material_model, soundspeed, initial_material_state   # Material model interface
+export material_model, soundspeed, initial_material_state, initial_material_states   # Material model interface
 export NeoHookean, LinearElastic                                    # hyperelastic materials
 export NoMaterialModel                                              # Debugging / Fallback
 export SolidMaterial, SolidMaterialState                            # Solid materials
-export init_state
+export init_state, init_states
 export update_eos
 export MurnaghanEOS, MurnaghanState                                 # Murnaghan EOS
 export TillotsonEOS, TillotsonState                                 # Tillotson EOS

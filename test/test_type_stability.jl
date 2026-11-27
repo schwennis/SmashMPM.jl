@@ -14,14 +14,17 @@
 # SmashMPM's own code (target_modules); step! and build_mpm_model are checked
 # with @inferred and allocation bounds.
 
-@testset "material_model: $name ($T)" for T in (Float64, Float32), (name, mat) in material_zoo(T)
-    st   = initial_material_state(mat, Xoshiro(1), 100, T(1e-3))
+@testset "material_model: $name ($T)" for T in (Float64, Float32), (name, mat_ref) in material_zoo(T)
+    # body-level initialization: the material of the set may carry sampled data (flaws)
+    mat, states = initial_material_states(mat_ref, Xoshiro(1), 100, T(1e-3))
+    st   = states[1]
     F    = SMatrix{3, 3, T, 9}(1.01, 0.002, 0, 0.001, 0.99, 0, 0, 0, 1)
     C    = SMatrix{3, 3, T, 9}(-10, 1, 0, 2, 5, 0, 0, 0, -3)
     args = (mat, st, F, C, T(1e-9), T(2.7e-6), T(1e-7), T(1e-3))
 
     # The particle arrays store ONE state type (taken from the deterministic
     # initial state): neither the random initialization nor the update may change it.
+    @test typeof(st) === typeof(initial_material_state(mat_ref))
     @test typeof(st) === typeof(initial_material_state(mat))
     σ, st_new = @inferred material_model(args...)
     @test typeof(st_new) === typeof(st)
