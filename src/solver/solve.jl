@@ -50,6 +50,9 @@ function step!(model::MPMModel)
     # G2P2G step, reads from state read and writes to state_write
     g2p2g!(model, dt)
 
+    # Heat bookkeeping: P2G mixing loss per node, before forces enter the momentum
+    mixing_loss!(model.transfer, model.grid)
+
     # Apply external forces to the grid
     apply_external_forces!(model.external_force, model.grid, dt)
     # Update simulation time

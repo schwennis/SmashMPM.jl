@@ -31,6 +31,41 @@ initial_material_state(material::AbstractMaterial, rng, n_p, V) = initial_materi
 
 
 # ---------------------------------------------------------------------------- #
+#                     Internal energy (transfer heat bookkeeping)              #
+# ---------------------------------------------------------------------------- #
+"""
+    has_internal_energy(material) -> Bool
+
+True if the material state carries a specific internal energy that can take up
+the heat of the transfer (`APIC(heating=true)` / `PolyPIC(heating=true)`).
+"""
+has_internal_energy(::AbstractMaterial) = false
+
+"""
+    add_heat(material, mat_state, Δe) -> mat_state
+
+Adds the specific energy `Δe` (per unit mass) to the internal energy of the state.
+Default: the state is returned unchanged (the heat is lost).
+"""
+@inline add_heat(::AbstractMaterial, mat_state, Δe) = mat_state
+
+"""
+    internal_energy(material, mat_state) -> e
+
+Specific internal energy of the state (0 for materials without internal energy).
+"""
+@inline internal_energy(::AbstractMaterial, mat_state) = false   # type neutral 0
+
+"""
+    strain_energy(material, mat_state, F) -> W
+
+Stored elastic energy per unit REFERENCE volume (0 if not implemented).
+Only used for the energy diagnostics (`energy_budget`).
+"""
+@inline strain_energy(::AbstractMaterial, mat_state, F) = false
+
+
+# ---------------------------------------------------------------------------- #
 #                        Material Model Implementations                        #
 # ---------------------------------------------------------------------------- #
 include("materials/hyperelastic.jl")

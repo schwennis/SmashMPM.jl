@@ -5,10 +5,11 @@ abstract type AbstractGrid end
     mass::T
     momentum::SVector{3, T}
     force::SVector{3, T}
+    e_mix::T    # For booking transfer losses as hear
 end
 
 function Base.zero(::Type{GridNode{T}}) where {T}
-    return GridNode(mass=zero(T), momentum=zero(SVector{3, T}), force=zero(SVector{3, T}))
+    return GridNode(mass=zero(T), momentum=zero(SVector{3, T}), force=zero(SVector{3, T}), e_mix=zero(T))
 end
 
 

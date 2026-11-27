@@ -81,9 +81,8 @@ end
     end
 
     c_squared = max(dp_dρ + (p / ρ_safe^2) * dp_de, zero(T))
-    # e < 0 is clipped to 0 above, so p does not depend on e there
-    dp_de_eff = e < zero(T) ? zero(T) : dp_de
-    return p, sqrt(c_squared), dp_de_eff
+    
+    return p, sqrt(c_squared), dp_de
 end
 
 # ---------------------------------------------------------------------------- #

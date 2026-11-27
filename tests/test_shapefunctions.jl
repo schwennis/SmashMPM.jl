@@ -77,3 +77,23 @@ end
 
 
 end
+
+@testset "Precomputed stencil weights" begin
+    spline = QuadraticSpline()
+    for g in (SVector(7.3, 4.81, 5.07), SVector(10.4999, 3.5, 2.0001), SVector(1000.26, 2.75, 501.5))
+        base = SmashMPM.get_support_base(spline, g)
+        W    = SmashMPM.stencil_weights(spline, g, base)                    # 1D table
+        Wg   = SmashMPM.NodewiseWeights(spline, g, base)                    # generic fallback
+        s = 0.0
+        for di in 0:2, dj in 0:2, dk in 0:2
+            ref = shapefunction(spline, g - SVector(base[1] + di, base[2] + dj, base[3] + dk))
+            @test SmashMPM.stencil_weight(Wg, di, dj, dk) == ref
+            @test SmashMPM.stencil_weight(W, di, dj, dk) ≈ ref rtol = 1e-14
+            s += SmashMPM.stencil_weight(W, di, dj, dk)
+        end
+        @test s ≈ 1 rtol = 1e-14                                            # partition of unity
+    end
+    # every other shape function gets the generic fallback automatically
+    struct _TestSpline <: SmashMPM.AbstractShapeFunction end
+    @test SmashMPM.stencil_weights(_TestSpline(), SVector(1.0, 2.0, 3.0), (0, 1, 2)) isa SmashMPM.NodewiseWeights
+end

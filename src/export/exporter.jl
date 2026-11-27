@@ -37,6 +37,7 @@ function _to_cpu_grid_state(state)
             y = Array(state.force.y),
             z = Array(state.force.z),
         )),
+        e_mix      = Array(state.e_mix),
     ))
 end
 

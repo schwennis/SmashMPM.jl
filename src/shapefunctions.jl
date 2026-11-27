@@ -52,6 +52,60 @@ end
 
 @inline get_support_offsets(::QuadraticSpline) = (0:2, 0:2, 0:2)
 
+
+# ---------------------------------------------------------------------------- #
+#                     Precomputed weights of one stencil                       #
+# ---------------------------------------------------------------------------- #
+# The particle kernels get the weights of a stencil once per particle,
+#   W = stencil_weights(spline, grid_coords, base)
+# and then the weight of node base + (di, dj, dk) with stencil_weight(W, di, dj, dk).
+#
+# Generic fallback (every shape function, nothing to implement): the weight is
+# evaluated per node with `shapefunction`, exactly as before.
+# A tensor-product spline can overload `stencil_weights` with a table of its 1D
+# weights (as QuadraticSpline below): 3 × n instead of n³ × 3 1D evaluations.
+
+"""Generic stencil weights: evaluated node by node with `shapefunction`."""
+struct NodewiseWeights{S <: AbstractShapeFunction, T}
+    spline::S
+    grid_coords::SVector{3, T}
+    base::NTuple{3, Int}
+end
+
+"""
+    stencil_weights(spline, grid_coords, base)
+
+Weights of all support nodes of a particle at `grid_coords` (`base` from
+`get_support_base`). Use with `stencil_weight(W, di, dj, dk)`.
+"""
+@inline stencil_weights(spline::AbstractShapeFunction, grid_coords::SVector{3}, base) =
+    NodewiseWeights(spline, grid_coords, (Int(base[1]), Int(base[2]), Int(base[3])))
+
+"""
+    stencil_weight(W, di, dj, dk)
+
+Weight of the support node `base + (di, dj, dk)`, identical to
+`shapefunction(spline, grid_coords - node)`.
+"""
+@inline function stencil_weight(W::NodewiseWeights, di, dj, dk)
+    node = SVector(W.base[1] + di, W.base[2] + dj, W.base[3] + dk)
+    return shapefunction(W.spline, W.grid_coords - node)
+end
+
+# QuadraticSpline: table of the 1D weights, W[k, d] = weight along axis k of the
+# node base[k] + d - 1. Same natural coordinates (exact subtractions) and the same
+# product as shapefunction; 9 instead of 81 evaluations of quadspline_1d.
+@inline function stencil_weights(::QuadraticSpline, grid_coords::SVector{3, T}, base) where {T}
+    g1, g2, g3 = grid_coords
+    b1, b2, b3 = base
+    return SMatrix{3, 3, T, 9}(
+        quadspline_1d(g1 - b1),       quadspline_1d(g2 - b2),       quadspline_1d(g3 - b3),
+        quadspline_1d(g1 - (b1 + 1)), quadspline_1d(g2 - (b2 + 1)), quadspline_1d(g3 - (b3 + 1)),
+        quadspline_1d(g1 - (b1 + 2)), quadspline_1d(g2 - (b2 + 2)), quadspline_1d(g3 - (b3 + 2)))
+end
+
+@inline stencil_weight(W::SMatrix{3, 3}, di, dj, dk) = W[1, di + 1] * W[2, dj + 1] * W[3, dk + 1]
+
 # APIC Logic
 @inline function B_update(::QuadraticSpline, N, r_rel, v_I)
     return N * (v_I * r_rel')

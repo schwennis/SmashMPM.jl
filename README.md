@@ -25,7 +25,7 @@ julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 3. Optional: Install CUDA.jl for GPU runs:
 ```bash
-julia --project -e 'using Pkg; Pkg.add("CUDA.jl")'
+julia --project -e 'using Pkg; Pkg.add("CUDA")'
 ```
  
 ## Running the Examples
@@ -85,6 +85,23 @@ The script reads all matching HDF5 files from `output/`, prints the final relati
  
 Note that the two examples write to the same output directory under different file prefixes (`rotating_cube*` and `colliding_spheres*`). The conservation checks pick their own files by prefix. The time window evaluated in the sphere collision check is hard-coded in the script and may need adjusting if you change the simulation parameters.
  
+## Transfer schemes
+
+The particle-grid transfer is chosen in the `SimulationSetup`:
+
+```julia
+setup = SimulationSetup(dx = 0.1, t_max = 1.0, transfer = PolyPIC(heating = true))
+```
+
+| Transfer | Modes | Notes |
+|---|---|---|
+| `APIC()` (default) | 1, x, y, z | affine transfer |
+| `PolyPIC()` | 1, x, y, z, xy, xz, yz, Gx, Gy, Gz | 2nd order, `QuadraticSpline` only |
+
+`PolyPIC` uses a per-axis basis {1, ρ, G(ρ) = ρ² − aρ − ¼} with a = t(1−4t²), which is orthogonal at the stencil of the particle. It is rebuilt at the new stencil in the P2G, so the higher modes carry no momentum or angular momentum (both stay exact). The G modes are damped by the parameter-free minimal rule c_G ← c_G · min(1, √(ν₂(t)/ν₂(t′))): the transfer never creates energy, and particles at rest are not damped at all.
+
+With `heating = true` (for both schemes), the kinetic energy lost by the transfer is added to the internal energy `e` of the particles. That covers the G2P projection, the G-mode damping and the P2G mixing at nodes shared by several particles or bodies (contact). Materials without an internal energy (e.g. `NeoHookean`) cannot take up the heat (a warning is printed). `energy_budget(model)` returns the kinetic, internal, elastic and pending energy and their sum. With heating, that sum is conserved by the transfer itself. The heat terms are evaluated relative to reference velocities, so they stay accurate in `Float32` at high speed.
+
 ## Tests
  
 ```bash

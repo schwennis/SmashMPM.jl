@@ -127,3 +127,23 @@
         @test st3.e == stf.e
     end
 end
+
+@testset "Energy update is continuous at e = 0 (Tillotson)" begin
+    # The Tillotson EoS clips e < 0 to 0 (kink of p(e) at e = 0). The slope used to
+    # linearize the energy update must not jump there: before, e_n = +1e-20 and
+    # e_n = -1e-20 gave 80 MPa and 438 J/kg difference after one compression step,
+    # enough to make multithreaded runs diverge from rounding noise.
+    mat = Aluminum(Float64)
+    st0 = initial_material_state(mat)
+    I3  = one(SMatrix{3, 3, Float64, 9}); dt = 1e-8
+    C   = -1e6 * I3                                    # C dt = -0.01, strong compression
+    with_e(e) = SolidMaterialState(c = st0.c, e = e, eos_state = st0.eos_state,
+                                   elastic_state = st0.elastic_state, plastic_state = st0.plastic_state,
+                                   damage_state = st0.damage_state)
+    step_e(e) = material_model(mat, with_e(e), I3 + dt * C, C, 1e-12, 2.7e-9, dt, 2.5e-4)
+    (σp, sp), (σm, sm) = step_e(1e-20), step_e(-1e-20)
+    @test sp.eos_state.p > 1e9
+    @test abs(sp.eos_state.p - sm.eos_state.p) < 1e-12 * sp.eos_state.p
+    @test abs(sp.e - sm.e) < 1e-9
+    @test σp ≈ σm rtol = 1e-14
+end

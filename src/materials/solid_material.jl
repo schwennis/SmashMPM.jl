@@ -334,6 +334,19 @@ end
 
 @inline soundspeed(::SolidMaterial, mat_state::SolidMaterialState) = mat_state.c
 
+# Internal energy: heat of the transfer goes into e. It is added BEFORE the material
+# update, so the EoS of this step already sees it (p(ρ_{n+1}, e_n + Δe)).
+has_internal_energy(::SolidMaterial) = true
+@inline internal_energy(::SolidMaterial, st::SolidMaterialState) = st.e
+@inline add_heat(::SolidMaterial, st::SolidMaterialState, Δe) =
+    SolidMaterialState(c = st.c, e = st.e + Δe, eos_state = st.eos_state,
+                       elastic_state = st.elastic_state, plastic_state = st.plastic_state,
+                       damage_state = st.damage_state)
+
+# Stored (degraded) elastic shear energy, the volumetric part is contained in e
+@inline strain_energy(mat::SolidMaterial, st::SolidMaterialState, F) =
+    degradation(mat.damage, st.damage_state) * elastic_energy(mat.elasticity, st.elastic_state, det(F))
+
 # Same regularization as in material_model (state of t_n), used for the stored F
 @inline regularize_deformation(mat::SolidMaterial, st::SolidMaterialState, F) =
     regularize_deformation(mat.damage, st.damage_state, F)

@@ -23,6 +23,7 @@ function _allocate_grid_state(backend, ::Type{T}, N::SVector{3,Int}) where {T}
     force_x = zeros(T, dims)
     force_y = zeros(T, dims)
     force_z = zeros(T, dims)
+    e_mix = zeros(T, dims)
 
 
     # Named tuple to make single momentum components available via grid.state_write.momentum.x, .y, .z
@@ -39,7 +40,8 @@ function _allocate_grid_state(backend, ::Type{T}, N::SVector{3,Int}) where {T}
     return StructArray{GridNode{T}}((
         mass=_to_backend(backend, mass), 
         momentum=momentum, 
-        force=force
+        force=force,
+        e_mix=_to_backend(backend, e_mix)
     ))
 end
 
@@ -65,6 +67,7 @@ function grid_reset!(grid::DenseGrid{T, S}) where {T, S}
     fill!(grid.state_write.force.x, zero(T))
     fill!(grid.state_write.force.y, zero(T))
     fill!(grid.state_write.force.z, zero(T))
+    fill!(grid.state_write.e_mix, zero(T))
 end
 
 

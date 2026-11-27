@@ -133,6 +133,21 @@ end
 @inline node_mass(g, idx)     = g.state.mass[idx...]
 @inline node_momentum(g, idx) = g.state.momentum[idx...]
 @inline node_force(g, idx)    = g.state.force[idx...]
+@inline node_e_mix(g, idx)    = g.state.e_mix[idx...]
+
+"""
+    reference_velocity(g, cache, i, j, k, T) -> SVector{3}
+
+Velocity of node (i, j, k) in the grid state `g` (0 if the node does not exist
+or has no mass). Used as the per-node reference velocity of the heat bookkeeping:
+the P2G (all particles of a node) and `mixing_loss!` see the same value.
+"""
+@inline function reference_velocity(g, cache, i, j, k, ::Type{T}) where {T}
+    idx, status = node_slot(g, cache, i, j, k)
+    status == NODE_OK || return zero(SVector{3, T})
+    m = node_mass(g, idx)
+    return m > sqrt(floatmin(T)) ? node_momentum(g, idx) / m : zero(SVector{3, T})
+end
 
 # explicit index forms, so the atomic macro never sees a splat
 @inline atomic_add!(a, (i, j, k)::NTuple{3, Int}, v) = (@atomic :monotonic a[i, j, k] += v; nothing)
@@ -155,6 +170,12 @@ end
     atomic_add!(s.force.x, idx, f[1])
     atomic_add!(s.force.y, idx, f[2])
     atomic_add!(s.force.z, idx, f[3])
+    return nothing
+end
+
+"""Atomically add the kinetic energy `e` that a particle puts onto a node (heat bookkeeping)."""
+@inline function scatter_energy!(g, idx, e)
+    atomic_add!(g.state.e_mix, idx, e)
     return nothing
 end
 

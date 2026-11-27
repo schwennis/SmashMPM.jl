@@ -56,6 +56,12 @@ end
     return σ, mat_state
 end
 
+# small strain energy, consistent with σ = 2μ ε + λ tr(ε) I
+@inline function strain_energy(material::LinearElastic{T}, ::NoMaterialState, F) where {T}
+    ε = (F + F') / T(2) - one(SMatrix{3, 3, T, 9})
+    return material.μ * sum(abs2, ε) + material.λ / 2 * tr(ε)^2
+end
+
 function soundspeed(material::LinearElastic{T}, mat_state::NoMaterialState) where {T}
     return material.c
 end
@@ -102,6 +108,12 @@ end
     σ = (μ * (b - I) + λ * log(J) * I) / J
 
     return σ, mat_state
+end
+
+# W = μ/2 (tr b - 3) - μ ln J + λ/2 (ln J)², consistent with the Cauchy stress above
+@inline function strain_energy(material::NeoHookean{T}, ::NoMaterialState, F) where {T}
+    lnJ = log(det(F))
+    return material.μ / 2 * (sum(abs2, F) - 3) - material.μ * lnJ + material.λ / 2 * lnJ^2
 end
 
 function soundspeed(material::NeoHookean{T}, material_cache::NoMaterialState) where {T}

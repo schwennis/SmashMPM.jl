@@ -20,7 +20,7 @@ resolve_domain(::OpenDomain, bc::AbstractBoundaryCondition, N) =
           "Use NullBoundaryCondition for open boundaries or domain = FittedBox().")
 
 
-@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T, E, DM}
+@kwdef struct SimulationSetup{G, P, BC, EF, SF, B, T, E, DM, TR}
     # Grid
     dx::T
     grid_type::Type{G} = DenseGrid
@@ -38,6 +38,7 @@ resolve_domain(::OpenDomain, bc::AbstractBoundaryCondition, N) =
     boundary_condition::BC = NullBoundaryCondition()
     external_force::EF = NoExternalForce()
     shapefunction::SF = QuadraticSpline()
+    transfer::TR = APIC()               # APIC() / PolyPIC(), each optionally with heating = true
     seed::Int = 0                       # seed for randomly initialized material states (e.g. flaws)
 
     # Export Settings
@@ -77,6 +78,18 @@ function _build_grid(::Type{<:SparseGrid}, setup::SimulationSetup, N, origin, po
                       backend=setup.backend, max_tiles)
 end
 
+
+# With heating the transfer losses go into the internal energy. Materials without
+# one cannot take them up: the heat of their particles is lost (as without heating).
+function _check_transfer_setup(transfer::AbstractTransfer, spline, bodies)
+    check_transfer(transfer, spline)
+    transfer_heating(transfer) || return nothing
+    for body in bodies
+        has_internal_energy(body.material) ||
+            @warn "$(typeof(transfer).name.name)(heating=true): $(nameof(typeof(body.material))) has no internal energy, the transfer heat of its particles is lost."
+    end
+    return nothing
+end
 
 # ---------------------------------------------------------------------------- #
 #                                 Model builder                                #
@@ -143,6 +156,7 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
         )
     end
     particle_sets = map(b -> b.set, built)
+    _check_transfer_setup(setup.transfer, setup.shapefunction, bodies)
 
     # Initial P2G (SparseGrid: activates its tiles first and swaps them to the read state)
     prepare_initial_p2g!(grid, particle_sets, setup.shapefunction)
@@ -157,8 +171,10 @@ function build_mpm_model(bodies::Tuple, setup::SimulationSetup{G, P, BC, EF, SF,
         boundary_condition = setup.boundary_condition, 
         external_force = setup.external_force, 
         shapefunction = setup.shapefunction, 
+        transfer = setup.transfer,
         backend = setup.backend,
         t = zero(T), 
+        dt_previous = zero(T),      # the Float64 default 0.0 of MPMModel fails for T = Float32
         t_max = setup.t_max, 
         dt_max =setup.dt_max,
         cfl_number = setup.cfl_number

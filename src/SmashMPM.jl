@@ -38,6 +38,9 @@ include("shapefunctions.jl")
 export QuadraticSpline
 export shapefunction
 
+include("transfer.jl")
+export AbstractTransfer, APIC, PolyPIC
+
 
 include("particles.jl")
 export AbstractParticleSet, Particle, SoAParticleSet
@@ -76,7 +79,7 @@ export AbstractBody, Body, SimulationSetup, build_mpm_model
 export AutoDomain, FittedBox
 
 include("solver.jl")
-export g2p2g!, courant_timestep
+export g2p2g!, courant_timestep, energy_budget
 
 include("solver/solve.jl")
 export step!, solve!

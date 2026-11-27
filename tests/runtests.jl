@@ -46,6 +46,10 @@ using KernelAbstractions
         include("test_time_integration.jl")
     end
 
+    @testset "Transfer (APIC / PolyPIC / heating)" begin
+        include("test_transfer.jl")
+    end
+
     @testset "Conservation Tests" begin
         include("test_conservation/test_rotating_cube.jl")
         include("test_conservation/test_rotating_cube_sparse.jl")

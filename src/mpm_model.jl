@@ -5,6 +5,7 @@
     BC<:AbstractBoundaryCondition, 
     EF<:AbstractExternalForce,
     SF<:AbstractShapeFunction,
+    TR<:AbstractTransfer,
     B
 }
 
@@ -13,6 +14,7 @@
     boundary_condition::BC = NullBoundaryCondition()
     external_force::EF = NoExternalForce()
     shapefunction::SF = QuadraticSpline()
+    transfer::TR = APIC()
 
     backend::B = CPU()
 
@@ -46,6 +48,7 @@ function model_to_cpu(model::MPMModel)
         boundary_condition = model.boundary_condition,
         external_force = model.external_force,
         shapefunction = model.shapefunction,
+        transfer = model.transfer,
         backend = CPU(),
         t = model.t,
         t_max = model.t_max,
